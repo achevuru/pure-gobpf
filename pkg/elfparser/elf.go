@@ -1,5 +1,21 @@
 package elfparser
 
+/*
+#include <stdint.h>
+
+struct bpf_map_def {
+  uint32_t map_type;
+  uint32_t key_size;
+  uint32_t value_size;
+  uint32_t max_entries;
+  uint32_t map_flags;
+};
+
+#define BPF_MAP_DEF_SIZE sizeof(struct bpf_map_def)
+
+*/
+import "C"
+
 import (
 	"debug/elf"
 	"os"
@@ -35,7 +51,7 @@ func NullTerminatedStringToString(val []byte) string {
 
 func loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, elfFile *elf.File) error {
 	//Replace this TODO
-	mapDefinitionSize := 20
+	mapDefinitionSize := C.BPF_MAP_DEF_SIZE
 	GlobalMapData := []ebpf.BpfMapData{}
 	data, err := dataMaps.Data()
 	if err != nil {
