@@ -21,6 +21,7 @@ import (
 	"os"
 	"io"
 	"fmt"
+	"encoding/binary"
 
 	"github.com/jayanthvn/pure-gobpf/pkg/ebpf"
 	"github.com/jayanthvn/pure-gobpf/pkg/logger"
@@ -74,11 +75,11 @@ func loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, elfFile *elf.File)
 		log.Infof("Offset %d", offset)
 		mapData := ebpf.BpfMapData{}
 		mapDef := ebpf.BpfMapDef{
-			Type:       uint32(elfFile.ByteOrder.Uint32(data[offset : offset+4])),
-			KeySize:    elfFile.ByteOrder.Uint32(data[offset+4 : offset+8]),
-			ValueSize:  elfFile.ByteOrder.Uint32(data[offset+8 : offset+12]),
-			MaxEntries: elfFile.ByteOrder.Uint32(data[offset+12 : offset+16]),
-			Flags:      uint32(elfFile.ByteOrder.Uint32(data[offset+16 : offset+20])),
+			Type:       uint32(binary.LittleEndian.Uint32(data[offset : offset+4])),
+			KeySize:    uint32(binary.LittleEndian.Uint32(data[offset+4 : offset+8])),
+			ValueSize:  uint32(binary.LittleEndian.Uint32(data[offset+8 : offset+12])),
+			MaxEntries: uint32(binary.LittleEndian.Uint32(data[offset+12 : offset+16])),
+			Flags:      uint32(binary.LittleEndian.Uint32(data[offset+16 : offset+20])),
 		}
 		// Retrieve map name by looking up symbols table:
 		// Each symbol contains section index and arbitrary value which for our case
