@@ -7,6 +7,7 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/unix"
+	"github.com/jayanthvn/pure-gobpf/pkg/logger"
 )
 
 /*
@@ -18,6 +19,8 @@ struct bpf_map_def {
   __u32 map_flags;
 };
 */
+
+var log = logger.Get()
 
 const (
 	// BPF map type constants. Must match enum bpf_map_type from linux/bpf.h
@@ -105,7 +108,9 @@ func (m *BpfMapData) CreateMap() (int, error) {
 	)
 
 	if ret != 0 {
+		log.Infof("Created map and ret %d", int(ret))
 		return int(ret), nil
 	}
+	log.Infof("Unable to create map %s", err)
 	return 0, fmt.Errorf("Unable to create map: %s", err)
 }

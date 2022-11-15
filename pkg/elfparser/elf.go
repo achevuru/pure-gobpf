@@ -89,6 +89,8 @@ func loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, elfFile *elf.File)
 		if mapData.Name == "" {
 			log.Infof("Unable to get map name")
 			return fmt.Errorf("Unable to get map name (section offset=%d)", offset)
+		} else {
+			log.Infof("Found map name %s", mapData.Name)
 		}
 		mapData.Def = mapDef
 		GlobalMapData = append(GlobalMapData, mapData)
@@ -96,7 +98,10 @@ func loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, elfFile *elf.File)
 
 	
 	//load maps
+	log.Infof("Total maps - %d", len(GlobalMapData))
+
 	for index := 0; index < len(GlobalMapData); index++ {
+		log.Infof("Loading maps")
 		loadedMaps := GlobalMapData[index]
 		loadedMaps.CreateMap()
 	}
