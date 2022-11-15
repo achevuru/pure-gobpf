@@ -106,7 +106,6 @@ func (m *BpfMapData) CreateMap() (int, error) {
 	mapName := path.Base(m.Name)
 	var name [16]byte
 	copy(name[:], mapName)
-	/*
 	mapSysData := struct {
 		mapType    uint32
 		keySize    uint32
@@ -121,28 +120,15 @@ func (m *BpfMapData) CreateMap() (int, error) {
 		uint32(m.Def.MaxEntries),
 		uint32(m.Def.Flags),
 		name,
-	}*/
+	}
 
-			u := ubaMapName{
-			ubaCommon: ubaCommon{
-				mapType:    uint32(m.Def.Type),
-				keySize:    m.Def.KeySize,
-				valueSize:  m.Def.ValueSize,
-				maxEntries: m.Def.MaxEntries,
-				mapFlags:   m.Def.Flags,
-			},
-			mapName: name,
-		}
-		uba := unsafe.Pointer(&u)
-		ubaSize := unsafe.Sizeof(u)
-
-	log.Infof("Calling BPFsys for name %s and flags %d", m.Name, m.Def.Flags)
+	log.Infof("Calling BPFsys for name %s mapType %d keysize %d valuesize %d max entries %d and flags %d", m.Name, m.Def.KeySize, m.Def.ValueSize, m.Def.MaxEntries, m.Def.Flags)
 
 	ret, _, err := unix.Syscall(
 		unix.SYS_BPF,
 		BPF_MAP_CREATE,
-		uintptr(uba),
-		ubaSize,
+		uintptr(unsafe.Pointer(&mapSysData)),
+		unsafe.Sizeof(mapSysData),
 	)
 
 	if ret != 0 {
