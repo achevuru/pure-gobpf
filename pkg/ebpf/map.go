@@ -5,6 +5,7 @@ import "C"
 import (
 	"fmt"
 	"unsafe"
+	"path"
 
 	"golang.org/x/sys/unix"
 	"github.com/jayanthvn/pure-gobpf/pkg/logger"
@@ -77,34 +78,41 @@ type BpfMapDef struct {
 }
 
 type BpfMapData struct {
-	Fd int
-	Name string
-	//size_t elf_offset;
 	Def BpfMapDef
+	numaNode uint32
+	Name string 
 }
 
 func (m *BpfMapData) CreateMap() (int, error) {
 	// This struct must be in sync with union bpf_attr's anonymous struct
 	// used by the BPF_MAP_CREATE command
-	uba := struct {
+	mapName := path.Base(m.Name)
+	var name [16]byte
+	copy(name[:], mapName)
+	
+	mapSysData := struct {
 		mapType    uint32
 		keySize    uint32
 		valueSize  uint32
 		maxEntries uint32
 		mapFlags   uint32
+		mapName  [16]byte
 	}{
 		uint32(m.Def.Type),
 		uint32(m.Def.KeySize),
 		uint32(m.Def.ValueSize),
 		uint32(m.Def.MaxEntries),
 		uint32(m.Def.Flags),
+		name,
 	}
+
+	log.Infof("Calling BPFsys for name %s and flags %s", m.Name, m.Def.Flags)
 
 	ret, _, err := unix.Syscall(
 		unix.SYS_BPF,
 		BPF_MAP_CREATE,
-		uintptr(unsafe.Pointer(&uba)),
-		unsafe.Sizeof(uba),
+		uintptr(unsafe.Pointer(&mapSysData)),
+		unsafe.Sizeof(mapSysData),
 	)
 
 	if ret != 0 {
