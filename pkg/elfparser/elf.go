@@ -68,7 +68,10 @@ func loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, elfFile *elf.File)
 		return fmt.Errorf("get symbols: %w", err)
 	}
 
+	log.Infof("Dumping MAP %v and size %d", data, mapDefinitionSize)
+
 	for offset := 0; offset < len(data); offset += mapDefinitionSize {
+		log.Infof("Offset %d", offset)
 		mapData := ebpf.BpfMapData{}
 		mapDef := ebpf.BpfMapDef{
 			Type:       uint32(elfFile.ByteOrder.Uint32(data[offset : offset+4])),
