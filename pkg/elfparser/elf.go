@@ -23,13 +23,16 @@ import (
 	"fmt"
 
 	"github.com/jayanthvn/pure-gobpf/pkg/ebpf"
+	"github.com/jayanthvn/pure-gobpf/pkg/logger"
 )
 
 //Ref:https://github.com/torvalds/linux/blob/v5.10/samples/bpf/bpf_load.c
+var log = logger.Get()
 
 func LoadBpfFile(path string) error {
 	f, err := os.Open(path)
 	if err != nil {
+		log.Infof("LoadBpfFile failed to open")
 		return err
 	}
 	defer f.Close()
@@ -55,11 +58,13 @@ func loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, elfFile *elf.File)
 	GlobalMapData := []ebpf.BpfMapData{}
 	data, err := dataMaps.Data()
 	if err != nil {
+		log.Infof("Error while loading section")
 		return fmt.Errorf("error while loading section': %w", err)
 	}
 
 	symbols, err := elfFile.Symbols()
 	if err != nil {
+		log.Infof("Get symbol failed")
 		return fmt.Errorf("get symbols: %w", err)
 	}
 
@@ -82,6 +87,7 @@ func loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, elfFile *elf.File)
 			}
 		}
 		if mapData.Name == "" {
+			log.Infof("Unable to get map name")
 			return fmt.Errorf("Unable to get map name (section offset=%d)", offset)
 		}
 		mapData.Def = mapDef
@@ -126,10 +132,10 @@ func doLoadELF(r io.ReaderAt) error {
 		}
 	}
 
-	fmt.Printf("License %s", license)
-	fmt.Printf("strtabidx %d", strtabidx)
+	log.Infof("License %s", license)
+	log.Infof("strtabidx %d", strtabidx)
 	if (symbolTab == nil) {
-		fmt.Printf("missing SHT_SYMTAB section\n")
+		log.Infof("missing SHT_SYMTAB section\n")
 		return nil
 	}
 	if (dataMaps != nil) {
