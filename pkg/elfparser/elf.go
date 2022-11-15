@@ -81,9 +81,13 @@ func loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, elfFile *elf.File)
 			MaxEntries: uint32(binary.LittleEndian.Uint32(data[offset+12 : offset+16])),
 			Flags:      uint32(binary.LittleEndian.Uint32(data[offset+16 : offset+20])),
 		}
-		// Retrieve map name by looking up symbols table:
-		// Each symbol contains section index and arbitrary value which for our case
-		// is offset in section's data
+
+		log.Infof("DUMP Type %d KeySize %d ValueSize %d MaxEntries %d Flags %d", uint32(binary.LittleEndian.Uint32(data[offset : offset+4])), 
+				uint32(binary.LittleEndian.Uint32(data[offset+4 : offset+8])), uint32(binary.LittleEndian.Uint32(data[offset+8 : offset+12])),
+			        uint32(binary.LittleEndian.Uint32(data[offset+12 : offset+16])), uint32(binary.LittleEndian.Uint32(data[offset+16 : offset+20])))
+
+		log.Info("Dump %d, %d, %d, %d, %d", mapDef.Type, mapDef.KeySize, mapDef.ValueSize, mapDef.MaxEntries, mapDef.Flags)
+		
 		for _, sym := range symbols {
 			if int(sym.Section) == mapsShndx && int(sym.Value) == offset {
 				mapData.Name = sym.Name
