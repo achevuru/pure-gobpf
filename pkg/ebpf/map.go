@@ -122,7 +122,7 @@ func (m *BpfMapData) CreateMap() (int, error) {
 		name,
 	}
 
-	log.Infof("Calling BPFsys for name %s mapType %d keysize %d valuesize %d max entries %d and flags %d", m.Name, m.Def.KeySize, m.Def.ValueSize, m.Def.MaxEntries, m.Def.Flags)
+	log.Infof("Calling BPFsys for name %s mapType %d keysize %d valuesize %d max entries %d and flags %d", m.Name, m.Def.Type, m.Def.KeySize, m.Def.ValueSize, m.Def.MaxEntries, m.Def.Flags)
 
 	ret, _, err := unix.Syscall(
 		unix.SYS_BPF,
