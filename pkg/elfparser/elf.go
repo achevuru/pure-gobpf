@@ -111,7 +111,7 @@ func doLoadELF(r io.ReaderAt) error {
 
 	/* scan over all elf sections to get license and map info */
 	var dataMaps *elf.Section
-	var symbolTab *elf.Section
+	//var symbolTab *elf.Section
 	var mapsShndx int
 	var strtabidx uint32
 	license := ""
@@ -126,18 +126,20 @@ func doLoadELF(r io.ReaderAt) error {
 		} else if section.Name == "maps" {
 			dataMaps = section
 			mapsShndx = index
-		} else if section.Type == elf.SHT_SYMTAB {
+		} /*else if section.Type == elf.SHT_SYMTAB {
 			strtabidx = section.Link
 			symbolTab = section
-		}
+		}*/
 	}
 
 	log.Infof("License %s", license)
 	log.Infof("strtabidx %d", strtabidx)
+	/*
 	if (symbolTab == nil) {
 		log.Infof("missing SHT_SYMTAB section\n")
 		return nil
 	}
+	*/
 	if (dataMaps != nil) {
 		err := loadElfMapsSection(mapsShndx, dataMaps, elfFile)
 		if err != nil {
