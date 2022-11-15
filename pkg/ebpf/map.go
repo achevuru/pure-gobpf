@@ -106,7 +106,7 @@ func (m *BpfMapData) CreateMap() (int, error) {
 		name,
 	}
 
-	log.Infof("Calling BPFsys for name %s and flags %s", m.Name, m.Def.Flags)
+	log.Infof("Calling BPFsys for name %s and flags %d", m.Name, m.Def.Flags)
 
 	ret, _, err := unix.Syscall(
 		unix.SYS_BPF,
@@ -116,7 +116,7 @@ func (m *BpfMapData) CreateMap() (int, error) {
 	)
 
 	if ret != 0 {
-		log.Infof("Created map and ret %d", int(ret))
+		log.Infof("Created map and ret %d and err %s", int(ret), err)
 		return int(ret), nil
 	}
 	log.Infof("Unable to create map %s", err)
