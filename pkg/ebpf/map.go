@@ -152,7 +152,7 @@ func (m *BpfMapData) CreateMap() (int, error) {
 	// This struct must be in sync with union bpf_attr's anonymous struct
 	// used by the BPF_MAP_CREATE command
 
-	u := BpfMapData{
+	mapCont := BpfMapData{
 		Def: BpfMapDef{
 			Type:    uint32(m.Def.Type),
 			KeySize:    m.Def.KeySize,
@@ -163,16 +163,16 @@ func (m *BpfMapData) CreateMap() (int, error) {
 		},
 		Name: m.Name,
 	}
-	uba := unsafe.Pointer(&u)
-	ubaSize := unsafe.Sizeof(u)
+	mapData := unsafe.Pointer(&mapCont)
+	mapDataSize := unsafe.Sizeof(mapCont)
 
 	log.Infof("Calling BPFsys for name %s mapType %d keysize %d valuesize %d max entries %d and flags %d",string(m.Name[:]), m.Def.Type, m.Def.KeySize, m.Def.ValueSize, m.Def.MaxEntries, m.Def.Flags)
 
 	ret, _, err := unix.Syscall(
 		unix.SYS_BPF,
 		BPF_MAP_CREATE,
-		uintptr(uba),
-		ubaSize,
+		uintptr(mapData),
+		mapDataSize,
 	)
 	
 	if ret != 0 {
