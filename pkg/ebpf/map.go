@@ -68,6 +68,17 @@ const (
 	BPF_F_NO_COMMON_LRU = 1 << 1
 )
 
+/*
+struct bpf_elf_map {
+        __u32 map_type;
+        __u32 key_size;
+        __u32 value_size;
+        __u32 max_entries;
+        __u32 map_flags;
+        __u32 id;
+        __u32 pinning;
+};
+*/
 //Ref: https://elixir.bootlin.com/linux/v5.10.153/source/samples/bpf/bpf_load.h#L20
 type BpfMapDef struct {
 	Type uint32
@@ -75,29 +86,14 @@ type BpfMapDef struct {
 	ValueSize  uint32
 	MaxEntries uint32
 	Flags      uint32
+	Id         uint32
+	Pinning    uint32
 }
 
 type BpfMapData struct {
 	Def BpfMapDef
 	numaNode uint32
 	Name string 
-}
-
-type ubaCommon struct {
-	mapType    uint32
-	keySize    uint32
-	valueSize  uint32
-	maxEntries uint32
-	mapFlags   uint32
-	innerID    uint32
-}
-
-// This struct must be in sync with union bpf_attr's anonymous struct
-// used by the BPF_MAP_CREATE command
-type ubaMapName struct {
-	ubaCommon
-	numaNode uint32
-	mapName  [16]byte
 }
 
 func (m *BpfMapData) CreateMap() (int, error) {
@@ -112,6 +108,7 @@ func (m *BpfMapData) CreateMap() (int, error) {
 		valueSize  uint32
 		maxEntries uint32
 		mapFlags   uint32
+		Pinning    uint32
 		mapName  [16]byte
 	}{
 		uint32(m.Def.Type),
@@ -119,6 +116,7 @@ func (m *BpfMapData) CreateMap() (int, error) {
 		uint32(m.Def.ValueSize),
 		uint32(m.Def.MaxEntries),
 		uint32(m.Def.Flags),
+		uint32(m.Def.Pinning),
 		name,
 	}
 

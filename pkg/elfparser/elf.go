@@ -11,7 +11,17 @@ struct bpf_map_def {
   uint32_t map_flags;
 };
 
-#define BPF_MAP_DEF_SIZE sizeof(struct bpf_map_def)
+struct bpf_elf_map {
+        uint32_t map_type;
+        uint32_t key_size;
+        uint32_t value_size;
+        uint32_t max_entries;
+        uint32_t map_flags;
+        uint32_t id;
+        uint32_t pinning;
+};
+
+#define BPF_MAP_DEF_SIZE sizeof(struct bpf_elf_map)
 
 */
 import "C"
@@ -80,13 +90,15 @@ func loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, elfFile *elf.File)
 			ValueSize:  uint32(binary.LittleEndian.Uint32(data[offset+8 : offset+12])),
 			MaxEntries: uint32(binary.LittleEndian.Uint32(data[offset+12 : offset+16])),
 			Flags:      uint32(binary.LittleEndian.Uint32(data[offset+16 : offset+20])),
+			Id:      uint32(binary.LittleEndian.Uint32(data[offset+20 : offset+24])),
+			Pinning:      uint32(binary.LittleEndian.Uint32(data[offset+24 : offset+28])),
 		}
 
-		log.Infof("DUMP Type %d KeySize %d ValueSize %d MaxEntries %d Flags %d", uint32(binary.LittleEndian.Uint32(data[offset : offset+4])), 
+		log.Infof("DUMP Type %d KeySize %d ValueSize %d MaxEntries %d Flags %d, ID %d, Pinning %d", uint32(binary.LittleEndian.Uint32(data[offset : offset+4])), 
 				uint32(binary.LittleEndian.Uint32(data[offset+4 : offset+8])), uint32(binary.LittleEndian.Uint32(data[offset+8 : offset+12])),
-			        uint32(binary.LittleEndian.Uint32(data[offset+12 : offset+16])), uint32(binary.LittleEndian.Uint32(data[offset+16 : offset+20])))
+			        uint32(binary.LittleEndian.Uint32(data[offset+12 : offset+16])), uint32(binary.LittleEndian.Uint32(data[offset+16 : offset+20])),
+			        uint32(binary.LittleEndian.Uint32(data[offset+20 : offset+24])), uint32(binary.LittleEndian.Uint32(data[offset+24 : offset+28])))
 
-		log.Info("Dump %d, %d, %d, %d, %d", mapDef.Type, mapDef.KeySize, mapDef.ValueSize, mapDef.MaxEntries, mapDef.Flags)
 		
 		for _, sym := range symbols {
 			if int(sym.Section) == mapsShndx && int(sym.Value) == offset {
