@@ -122,8 +122,8 @@ type BpfMapDef struct {
 	ValueSize  uint32
 	MaxEntries uint32
 	Flags      uint32
-	Id         uint32
-	Pinning    uint32
+	//Id         uint32
+	//Pinning    uint32
 }
 
 type BpfMapData struct {
@@ -144,7 +144,7 @@ func (m *BpfMapData) CreateMap() (int, error) {
 		valueSize  uint32
 		maxEntries uint32
 		mapFlags   uint32
-		Pinning    uint32
+		//Pinning    uint32
 		mapName  [16]byte
 	}{
 		uint32(m.Def.Type),
@@ -152,7 +152,7 @@ func (m *BpfMapData) CreateMap() (int, error) {
 		uint32(m.Def.ValueSize),
 		uint32(m.Def.MaxEntries),
 		uint32(m.Def.Flags),
-		uint32(m.Def.Pinning),
+		//uint32(m.Def.Pinning),
 		name,
 	}
 
