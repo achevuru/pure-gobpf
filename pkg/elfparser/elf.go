@@ -93,7 +93,7 @@ func loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, elfFile *elf.File)
 			Flags:      uint32(binary.LittleEndian.Uint32(data[offset+16 : offset+20])),
 		}
 
-		log.Infof("DUMP Type %d KeySize %d ValueSize %d MaxEntries %d Flags %d, ID %d, Pinning %d", uint32(binary.LittleEndian.Uint32(data[offset : offset+4])), 
+		log.Infof("DUMP Type %d KeySize %d ValueSize %d MaxEntries %d Flags %d", uint32(binary.LittleEndian.Uint32(data[offset : offset+4])), 
 				uint32(binary.LittleEndian.Uint32(data[offset+4 : offset+8])), uint32(binary.LittleEndian.Uint32(data[offset+8 : offset+12])),
 			        uint32(binary.LittleEndian.Uint32(data[offset+12 : offset+16])), uint32(binary.LittleEndian.Uint32(data[offset+16 : offset+20])))
 

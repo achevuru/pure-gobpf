@@ -166,7 +166,7 @@ func (m *BpfMapData) CreateMap() (int, error) {
 	uba := unsafe.Pointer(&u)
 	ubaSize := unsafe.Sizeof(u)
 
-	log.Infof("Calling BPFsys for name %s mapType %d keysize %d valuesize %d max entries %d and flags %d", m.Name, m.Def.Type, m.Def.KeySize, m.Def.ValueSize, m.Def.MaxEntries, m.Def.Flags)
+	log.Infof("Calling BPFsys for name %s mapType %d keysize %d valuesize %d max entries %d and flags %d",string(m.Name[:]), m.Def.Type, m.Def.KeySize, m.Def.ValueSize, m.Def.MaxEntries, m.Def.Flags)
 
 	ret, _, err := unix.Syscall(
 		unix.SYS_BPF,
@@ -176,11 +176,11 @@ func (m *BpfMapData) CreateMap() (int, error) {
 	)
 	
 	if ret != 0 {
-		log.Infof("Created map and ret %d and err %s", int(ret), err)
-		return int(ret), nil
+		log.Infof("Unable to create map and ret %d and err %s", int(ret), err)
+		return int(ret), fmt.Errorf("Unable to create map: %s", err)
 	}
 
 
-	log.Infof("Unable to create map %s", err)
-	return 0, fmt.Errorf("Unable to create map: %s", err)
+	log.Infof("Create map done")
+	return 0, nil
 }
