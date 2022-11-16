@@ -1,41 +1,5 @@
 package ebpf
 
-/*
-#include <string.h>
-#include <unistd.h>
-#include <errno.h>
-#include <stdlib.h>
-#include "bpf.h"
-#include "bpf_helpers.h"
-// Mac has syscall() deprecated and this produces some noise during package install.
-// Wrap all syscalls into macro.
-#ifdef __linux__
-#define SYSCALL_BPF(command)		\
-	syscall(__NR_bpf, command, &attr, sizeof(attr));
-#else
-#define SYSCALL_BPF(command)		0
-#endif
-// Since eBPF mock package is optional and have definition of "__maps_head" symbol
-// it may cause link error, so defining weak symbol here as well
-struct __create_map_def maps_head;
-__attribute__((weak)) struct __maps_head_def *__maps_head = (struct __maps_head_def*) &maps_head;
-static int ebpf_map_create(const char *name, __u32 map_type, __u32 key_size, __u32 value_size,
-		__u32 max_entries, __u32 flags, __u32 inner_fd, void *log_buf, size_t log_size)
-{
-	union bpf_attr attr = {};
-	attr.map_type = map_type;
-	attr.key_size = key_size;
-	attr.value_size = value_size;
-	attr.max_entries = max_entries;
-	attr.map_flags = flags;
-	attr.inner_map_fd = inner_fd;
-	strncpy((char*)&attr.map_name, name, BPF_OBJ_NAME_LEN - 1);
-	int res = SYSCALL_BPF(BPF_MAP_CREATE);
-	strncpy(log_buf, strerror(errno), log_size);
-	return res;
-}
-
-*/
 import "C"
 
 import (
