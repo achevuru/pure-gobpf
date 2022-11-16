@@ -41,7 +41,6 @@ import "C"
 import (
 	"fmt"
 	"unsafe"
-	"path"
 
 	"golang.org/x/sys/unix"
 	"github.com/jayanthvn/pure-gobpf/pkg/logger"
@@ -115,6 +114,24 @@ struct bpf_elf_map {
         __u32 pinning;
 };
 */
+
+/*
+nion bpf_attr {
+        struct {
+                __u32 map_type;
+                __u32 key_size;
+                __u32 value_size;
+                __u32 max_entries;
+                __u32 map_flags;
+                __u32 inner_map_fd;
+                __u32 numa_node;
+                char map_name[16];
+                __u32 map_ifindex;
+                __u32 btf_fd;
+                __u32 btf_key_type_id;
+                __u32 btf_value_type_id;
+        };
+*/
 //Ref: https://elixir.bootlin.com/linux/v5.10.153/source/samples/bpf/bpf_load.h#L20
 type BpfMapDef struct {
 	Type uint32
@@ -122,65 +139,42 @@ type BpfMapDef struct {
 	ValueSize  uint32
 	MaxEntries uint32
 	Flags      uint32
-	//Id         uint32
-	//Pinning    uint32
+	InnerMapFd uint32
 }
 
 type BpfMapData struct {
 	Def BpfMapDef
 	numaNode uint32
-	Name string 
+	Name [16]byte 
 }
 
 func (m *BpfMapData) CreateMap() (int, error) {
 	// This struct must be in sync with union bpf_attr's anonymous struct
 	// used by the BPF_MAP_CREATE command
-	mapName := path.Base(m.Name)
-	var name [16]byte
-	copy(name[:], mapName)
-	mapSysData := struct {
-		mapType    uint32
-		keySize    uint32
-		valueSize  uint32
-		maxEntries uint32
-		mapFlags   uint32
-		//Pinning    uint32
-		mapName  [16]byte
-	}{
-		uint32(m.Def.Type),
-		uint32(m.Def.KeySize),
-		uint32(m.Def.ValueSize),
-		uint32(m.Def.MaxEntries),
-		uint32(m.Def.Flags),
-		//uint32(m.Def.Pinning),
-		name,
+
+	u := BpfMapData{
+		Def: BpfMapDef{
+			Type:    uint32(m.Def.Type),
+			KeySize:    m.Def.KeySize,
+			ValueSize:  m.Def.ValueSize,
+			MaxEntries: m.Def.MaxEntries,
+			Flags:   m.Def.Flags,
+			InnerMapFd:    0,
+		},
+		Name: m.Name,
 	}
+	uba := unsafe.Pointer(&u)
+	ubaSize := unsafe.Sizeof(u)
 
 	log.Infof("Calling BPFsys for name %s mapType %d keysize %d valuesize %d max entries %d and flags %d", m.Name, m.Def.Type, m.Def.KeySize, m.Def.ValueSize, m.Def.MaxEntries, m.Def.Flags)
 
 	ret, _, err := unix.Syscall(
 		unix.SYS_BPF,
 		BPF_MAP_CREATE,
-		uintptr(unsafe.Pointer(&mapSysData)),
-		unsafe.Sizeof(mapSysData),
+		uintptr(uba),
+		ubaSize,
 	)
 	
-	var logBuf [100]byte
-	nameStr := C.CString(m.Name)
-	//Trying dropbox way
-	newFd := int(C.ebpf_map_create(
-		nameStr,
-		C.__u32(m.Def.Type),
-		C.__u32(m.Def.KeySize),
-		C.__u32(m.Def.ValueSize),
-		C.__u32(m.Def.MaxEntries),
-		C.__u32(m.Def.Flags),
-		C.__u32(0),
-		unsafe.Pointer(&logBuf[0]),
-		C.size_t(unsafe.Sizeof(logBuf)),
-	))
-	log.Infof("Drop box way of creation %d", newFd)
-
 	if ret != 0 {
 		log.Infof("Created map and ret %d and err %s", int(ret), err)
 		return int(ret), nil

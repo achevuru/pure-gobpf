@@ -32,6 +32,7 @@ import (
 	"io"
 	"fmt"
 	"encoding/binary"
+	"path"
 
 	"github.com/jayanthvn/pure-gobpf/pkg/ebpf"
 	"github.com/jayanthvn/pure-gobpf/pkg/logger"
@@ -90,23 +91,24 @@ func loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, elfFile *elf.File)
 			ValueSize:  uint32(binary.LittleEndian.Uint32(data[offset+8 : offset+12])),
 			MaxEntries: uint32(binary.LittleEndian.Uint32(data[offset+12 : offset+16])),
 			Flags:      uint32(binary.LittleEndian.Uint32(data[offset+16 : offset+20])),
-			//Id:      uint32(binary.LittleEndian.Uint32(data[offset+20 : offset+24])),
-			//Pinning:      uint32(binary.LittleEndian.Uint32(data[offset+24 : offset+28])),
 		}
 
 		log.Infof("DUMP Type %d KeySize %d ValueSize %d MaxEntries %d Flags %d, ID %d, Pinning %d", uint32(binary.LittleEndian.Uint32(data[offset : offset+4])), 
 				uint32(binary.LittleEndian.Uint32(data[offset+4 : offset+8])), uint32(binary.LittleEndian.Uint32(data[offset+8 : offset+12])),
 			        uint32(binary.LittleEndian.Uint32(data[offset+12 : offset+16])), uint32(binary.LittleEndian.Uint32(data[offset+16 : offset+20])))
-			        //uint32(binary.LittleEndian.Uint32(data[offset+20 : offset+24])), uint32(binary.LittleEndian.Uint32(data[offset+24 : offset+28])))
 
 		
 		for _, sym := range symbols {
 			if int(sym.Section) == mapsShndx && int(sym.Value) == offset {
-				mapData.Name = sym.Name
+				var name [16]byte
+				mapName := path.Base(sym.Name)
+				copy(name[:], mapName)
+				mapData.Name = name
 				break
 			}
 		}
-		if mapData.Name == "" {
+		mapNameStr := string(mapData.Name[:])
+		if mapNameStr == "" {
 			log.Infof("Unable to get map name")
 			return fmt.Errorf("Unable to get map name (section offset=%d)", offset)
 		} else {
