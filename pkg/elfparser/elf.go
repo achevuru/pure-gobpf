@@ -9,6 +9,7 @@ struct bpf_map_def {
   uint32_t value_size;
   uint32_t max_entries;
   uint32_t map_flags;
+  uint32_t inner_map_fd;
 };
 
 struct bpf_elf_map {
