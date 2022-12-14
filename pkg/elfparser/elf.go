@@ -9,17 +9,8 @@ struct bpf_map_def {
   uint32_t value_size;
   uint32_t max_entries;
   uint32_t map_flags;
+  uint32_t pinning;
   uint32_t inner_map_fd;
-};
-
-struct bpf_elf_map {
-        uint32_t map_type;
-        uint32_t key_size;
-        uint32_t value_size;
-        uint32_t max_entries;
-        uint32_t map_flags;
-        uint32_t id;
-        uint32_t pinning;
 };
 
 #define BPF_MAP_DEF_SIZE sizeof(struct bpf_map_def)
@@ -92,11 +83,13 @@ func loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, elfFile *elf.File)
 			ValueSize:  uint32(binary.LittleEndian.Uint32(data[offset+8 : offset+12])),
 			MaxEntries: uint32(binary.LittleEndian.Uint32(data[offset+12 : offset+16])),
 			Flags:      uint32(binary.LittleEndian.Uint32(data[offset+16 : offset+20])),
+			Pinning:    uint32(binary.LittleEndian.Uint32(data[offset+20 : offset+24])),
 		}
 
-		log.Infof("DUMP Type %d KeySize %d ValueSize %d MaxEntries %d Flags %d", uint32(binary.LittleEndian.Uint32(data[offset : offset+4])), 
+		log.Infof("DUMP Type %d KeySize %d ValueSize %d MaxEntries %d Flags %d Pinning %d", uint32(binary.LittleEndian.Uint32(data[offset : offset+4])), 
 				uint32(binary.LittleEndian.Uint32(data[offset+4 : offset+8])), uint32(binary.LittleEndian.Uint32(data[offset+8 : offset+12])),
-			        uint32(binary.LittleEndian.Uint32(data[offset+12 : offset+16])), uint32(binary.LittleEndian.Uint32(data[offset+16 : offset+20])))
+			        uint32(binary.LittleEndian.Uint32(data[offset+12 : offset+16])), uint32(binary.LittleEndian.Uint32(data[offset+16 : offset+20])),
+			        uint32(binary.LittleEndian.Uint32(data[offset+20 : offset+24])))
 
 		
 		for _, sym := range symbols {
@@ -120,13 +113,18 @@ func loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, elfFile *elf.File)
 	}
 
 	
-	//load maps
-	log.Infof("Total maps - %d", len(GlobalMapData))
+	log.Infof("Total maps found - %d", len(GlobalMapData))
 
 	for index := 0; index < len(GlobalMapData); index++ {
 		log.Infof("Loading maps")
 		loadedMaps := GlobalMapData[index]
-		loadedMaps.CreateMap()
+		mapFD, _ := loadedMaps.CreateMap()
+		if (mapFD == -1) {
+			//Even if one map fails, we error out
+			log.Infof("Failed to create map")
+			return fmt.Errorf("Failed to create map")
+		}
+		loadedMaps.PinMap(mapFD)
 	}
 	return nil
 }
@@ -137,9 +135,7 @@ func doLoadELF(r io.ReaderAt) error {
 		return err
 	}
 
-	/* scan over all elf sections to get license and map info */
 	var dataMaps *elf.Section
-	//var symbolTab *elf.Section
 	var mapsShndx int
 	var strtabidx uint32
 	license := ""
@@ -154,20 +150,12 @@ func doLoadELF(r io.ReaderAt) error {
 		} else if section.Name == "maps" {
 			dataMaps = section
 			mapsShndx = index
-		} /*else if section.Type == elf.SHT_SYMTAB {
-			strtabidx = section.Link
-			symbolTab = section
-		}*/
+		} 
 	}
 
 	log.Infof("License %s", license)
 	log.Infof("strtabidx %d", strtabidx)
-	/*
-	if (symbolTab == nil) {
-		log.Infof("missing SHT_SYMTAB section\n")
-		return nil
-	}
-	*/
+	
 	if (dataMaps != nil) {
 		err := loadElfMapsSection(mapsShndx, dataMaps, elfFile)
 		if err != nil {

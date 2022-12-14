@@ -5,6 +5,8 @@ import "C"
 import (
 	"fmt"
 	"unsafe"
+	"os"
+	"path"
 
 	"golang.org/x/sys/unix"
 	"github.com/jayanthvn/pure-gobpf/pkg/logger"
@@ -65,6 +67,15 @@ const (
 
 	BPF_F_NO_PREALLOC   = 1 << 0
 	BPF_F_NO_COMMON_LRU = 1 << 1
+
+	// BPF MAP pinning
+	PIN_NONE      = 0
+	PIN_OBJECT_NS = 1
+	PIN_GLOBAL_NS = 2
+	PIN_CUSTOM_NS = 3
+
+	BPF_DIR_MNT     = "/sys/fs/bpf/"
+	BPF_DIR_GLOBALS	= "globals"
 )
 
 /*
@@ -80,7 +91,7 @@ struct bpf_elf_map {
 */
 
 /*
-nion bpf_attr {
+Union bpf_attr {
         struct {
                 __u32 map_type;
                 __u32 key_size;
@@ -104,12 +115,18 @@ type BpfMapDef struct {
 	MaxEntries uint32
 	Flags      uint32
 	InnerMapFd uint32
+	Pinning    uint32
 }
 
 type BpfMapData struct {
 	Def BpfMapDef
 	numaNode uint32
 	Name [16]byte 
+}
+
+type BpfMapPin struct {
+	Pathname  uintptr
+	Fd     uint32
 }
 
 func (m *BpfMapData) CreateMap() (int, error) {
@@ -132,19 +149,61 @@ func (m *BpfMapData) CreateMap() (int, error) {
 
 	log.Infof("Calling BPFsys for name %s mapType %d keysize %d valuesize %d max entries %d and flags %d",string(m.Name[:]), m.Def.Type, m.Def.KeySize, m.Def.ValueSize, m.Def.MaxEntries, m.Def.Flags)
 
-	ret, _, err := unix.Syscall(
+	ret, _, errno := unix.Syscall(
 		unix.SYS_BPF,
 		BPF_MAP_CREATE,
 		uintptr(mapData),
 		mapDataSize,
 	)
         
-	if ret != 0 {
-		log.Infof("Unable to create map and ret %d and err %s", int(ret), err)
-		return int(ret), fmt.Errorf("Unable to create map: %s", err)
+	if errno < 0 {
+		log.Infof("Unable to create map and ret %d and err %s", int(ret), errno)
+		return int(ret), fmt.Errorf("Unable to create map: %s", errno)
 	}
 
 
-	log.Infof("Create map done")
-	return 0, nil
+	log.Infof("Create map done with fd : %d", ret)
+	return int(ret), nil
+}
+
+func (m *BpfMapData) PinMap(mapFD int) (error) {
+	if m.Def.Pinning == PIN_NONE {
+		return nil
+	}
+
+	if m.Def.Pinning == PIN_GLOBAL_NS {
+		pathname := BPF_DIR_MNT+"tc/"+BPF_DIR_GLOBALS
+		err := os.MkdirAll(path.Dir(pathname), 0644)
+		if err != nil {
+			return fmt.Errorf("error while making directories: %w, make sure bpffs is mounted at '%s'", err, BPF_DIR_MNT)
+		}
+	
+		cPath := []byte(pathname + "\x00")
+		pinAttr := BpfMapPin{
+			Fd:    uint32(mapFD),
+			Pathname: uintptr(unsafe.Pointer(&cPath[0])),
+		}
+		pinData := unsafe.Pointer(&pinAttr)
+		pinDataSize := unsafe.Sizeof(pinData)
+
+		log.Infof("Calling BPFsys for FD %d and Path %s",mapFD, pathname)
+
+		ret, _, _ := unix.Syscall(
+			unix.SYS_BPF,
+			BPF_OBJ_PIN,
+			uintptr(pinData),
+			pinDataSize,
+		)
+        /*
+		if err != nil {
+			log.Infof("Unable to pin map and ret %d and err %s", int(ret), err)
+			return fmt.Errorf("Unable to pin map: %s", err)
+		}
+
+	*/
+		log.Infof("Pin done with fd : %d", ret)
+		return nil
+	}
+	return nil
+
 }
