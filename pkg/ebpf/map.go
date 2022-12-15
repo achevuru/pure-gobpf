@@ -162,7 +162,7 @@ func (m *BpfMapData) CreateMap() (int, error) {
 	}
 
 
-	log.Infof("Create map done with fd : %d", int(ret)
+	log.Infof("Create map done with fd : %d", int(ret))
 	return int(ret), nil
 }
 

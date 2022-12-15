@@ -34,6 +34,7 @@ import (
 //var log = logger.Get()
 
 func LoadBpfFile(path string) error {
+	var log = logger.Get()
 	f, err := os.Open(path)
 	if err != nil {
 		log.Infof("LoadBpfFile failed to open")
