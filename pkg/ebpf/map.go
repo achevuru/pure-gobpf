@@ -176,6 +176,7 @@ func (m *BpfMapData) PinMap(mapFD int) (error) {
 		pathname := BPF_DIR_MNT+"tc/"+BPF_DIR_GLOBALS
 		err := os.MkdirAll(path.Dir(pathname), 0644)
 		if err != nil {
+			log.Infof("Error while making the directory")
 			return fmt.Errorf("error while making directories: %w, make sure bpffs is mounted at '%s'", err, BPF_DIR_MNT)
 		}
 	
