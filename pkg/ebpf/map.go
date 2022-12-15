@@ -162,11 +162,12 @@ func (m *BpfMapData) CreateMap() (int, error) {
 	}
 
 
-	log.Infof("Create map done with fd : %d", ret)
+	log.Infof("Create map done with fd : %d", int(ret)
 	return int(ret), nil
 }
 
 func (m *BpfMapData) PinMap(mapFD int) (error) {
+	var log = logger.Get()
 	if m.Def.Pinning == PIN_NONE {
 		return nil
 	}

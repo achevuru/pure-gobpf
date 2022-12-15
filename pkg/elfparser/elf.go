@@ -31,7 +31,7 @@ import (
 )
 
 //Ref:https://github.com/torvalds/linux/blob/v5.10/samples/bpf/bpf_load.c
-var log = logger.Get()
+//var log = logger.Get()
 
 func LoadBpfFile(path string) error {
 	f, err := os.Open(path)
@@ -57,6 +57,7 @@ func NullTerminatedStringToString(val []byte) string {
 }
 
 func loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, elfFile *elf.File) error {
+	var log = logger.Get()
 	//Replace this TODO
 	mapDefinitionSize := C.BPF_MAP_DEF_SIZE
 	GlobalMapData := []ebpf.BpfMapData{}
@@ -121,8 +122,9 @@ func loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, elfFile *elf.File)
 		mapFD, _ := loadedMaps.CreateMap()
 		if (mapFD == -1) {
 			//Even if one map fails, we error out
-			log.Infof("Failed to create map")
-			return fmt.Errorf("Failed to create map")
+			log.Infof("Failed to create map, continue to next map..just for debugging")
+			continue
+			//return fmt.Errorf("Failed to create map")
 		}
 		loadedMaps.PinMap(mapFD)
 	}
@@ -130,6 +132,7 @@ func loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, elfFile *elf.File)
 }
 
 func doLoadELF(r io.ReaderAt) error {
+	var log = logger.Get()
 	elfFile, err := elf.NewFile(r)
 	if err != nil {
 		return err
