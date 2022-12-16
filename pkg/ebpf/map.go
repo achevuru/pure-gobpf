@@ -192,19 +192,16 @@ func (m *BpfMapData) PinMap(mapFD int) (error) {
 
 		log.Infof("Calling BPFsys for FD %d and Path %s",mapFD, pathname)
 
-		ret, _, _ := unix.Syscall(
+		ret, _, errno := unix.Syscall(
 			unix.SYS_BPF,
 			BPF_OBJ_PIN,
 			uintptr(pinData),
 			pinDataSize,
 		)
-        /*
-		if err != nil {
-			log.Infof("Unable to pin map and ret %d and err %s", int(ret), err)
-			return fmt.Errorf("Unable to pin map: %s", err)
+		if errno < 0 {
+			log.Infof("Unable to pin map and ret %d and err %s", int(ret), errno)
+			return fmt.Errorf("Unable to pin map: %s", errno)
 		}
-
-	*/
 		log.Infof("Pin done with fd : %d", ret)
 		return nil
 	}
