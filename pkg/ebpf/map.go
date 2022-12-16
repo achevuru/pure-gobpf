@@ -40,7 +40,7 @@ struct bpf_map_def {
 };
 */
 
-var log = logger.Get()
+//var log = logger.Get()
 
 const (
 	// BPF map type constants. Must match enum bpf_map_type from linux/bpf.h
@@ -149,6 +149,7 @@ type BpfMapPin struct {
 }
 
 func (m *BpfMapData) CreateMap() (int, error) {
+	var log = logger.Get()
 	// This struct must be in sync with union bpf_attr's anonymous struct
 	// used by the BPF_MAP_CREATE command
 
