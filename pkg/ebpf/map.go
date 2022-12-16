@@ -1,12 +1,28 @@
 package ebpf
-
+/*
+#include <linux/unistd.h>
+#include <linux/bpf.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+extern __u64 ptr_to_u64(void *);
+int bpf_pin_object(int fd, const char *pathname)
+{
+	union bpf_attr attr;
+	memset(&attr, 0, sizeof(attr));
+	attr.pathname = ptr_to_u64((void *)pathname);
+	attr.bpf_fd = fd;
+	return syscall(__NR_bpf, BPF_OBJ_PIN, &attr, sizeof(attr));
+}
+*/
 import "C"
 
 import (
 	"fmt"
 	"unsafe"
-	//"os"
-	//"path"
+	"os"
+	"path/filepath"
+	//"strings"
 
 	"golang.org/x/sys/unix"
 	"github.com/jayanthvn/pure-gobpf/pkg/logger"
@@ -174,7 +190,7 @@ func (m *BpfMapData) PinMap(mapFD int) (error) {
 	}
 
 	if m.Def.Pinning == PIN_GLOBAL_NS {
-		pathname := BPF_DIR_MNT+"tc/"+BPF_DIR_GLOBALS
+		//pinPath := BPF_DIR_MNT+"tc/"+BPF_DIR_GLOBALS+"/test"
 
 		/*
 		err := os.MkdirAll(path.Dir(pathname), 0644)
@@ -182,7 +198,8 @@ func (m *BpfMapData) PinMap(mapFD int) (error) {
 			log.Infof("Error while making the directory")
 			return fmt.Errorf("error while making directories: %w, make sure bpffs is mounted at '%s'", err, BPF_DIR_MNT)
 		}*/
-	
+
+		/*
 		cPath := []byte(pathname + "\x00")
 		pinAttr := BpfMapPin{
 			Fd:    uint32(mapFD),
@@ -204,6 +221,31 @@ func (m *BpfMapData) PinMap(mapFD int) (error) {
 			return fmt.Errorf("Unable to pin map: %s", errno)
 		}
 		log.Infof("Pin done with fd : %d and errno %d", ret, errno)
+		return nil
+		*/
+		fd := mapFD
+		pinPath := "/sys/fs/bpf/tc/globals/my-name"
+		err := os.MkdirAll(filepath.Dir(pinPath), 0755)
+		if err != nil {
+			log.Infof("error creating directory %q: %v", filepath.Dir(pinPath), err)
+			return fmt.Errorf("error creating directory %q: %v", filepath.Dir(pinPath), err)
+		}
+		_, err = os.Stat(pinPath)
+		if err == nil {
+			log.Infof("aborting, found file at %q", pinPath)
+			return fmt.Errorf("aborting, found file at %q", pinPath)
+		}
+		if err != nil && !os.IsNotExist(err) {
+			log.Infof("failed to stat %q: %v", pinPath, err)
+			return fmt.Errorf("failed to stat %q: %v", pinPath, err)
+		}
+		pinPathC := C.CString(pinPath)
+		defer C.free(unsafe.Pointer(pinPathC))
+		ret, err := C.bpf_pin_object(C.int(fd), pinPathC)
+		if ret != 0 {
+			log.Infof("error pinning object to %q: %v", pinPath, err)
+			return fmt.Errorf("error pinning object to %q: %v", pinPath, err)
+		}
 		return nil
 	}
 	return nil
