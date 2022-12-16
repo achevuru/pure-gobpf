@@ -202,7 +202,7 @@ func (m *BpfMapData) PinMap(mapFD int) (error) {
 			log.Infof("Unable to pin map and ret %d and err %s", int(ret), errno)
 			return fmt.Errorf("Unable to pin map: %s", errno)
 		}
-		log.Infof("Pin done with fd : %d", ret)
+		log.Infof("Pin done with fd : %d and errno %d", ret, errno)
 		return nil
 	}
 	return nil
