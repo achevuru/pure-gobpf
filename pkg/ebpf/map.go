@@ -127,6 +127,7 @@ type BpfMapData struct {
 type BpfMapPin struct {
 	Pathname  uintptr
 	Fd     uint32
+	FileFlags uint32
 }
 
 func (m *BpfMapData) CreateMap() (int, error) {
