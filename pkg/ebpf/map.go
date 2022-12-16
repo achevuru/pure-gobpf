@@ -5,7 +5,9 @@ package ebpf
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-extern __u64 ptr_to_u64(void *);
+
+#define ptr_to_u64(ptr) ((__u64)(unsigned long)(ptr))
+
 int bpf_pin_object(int fd, const char *pathname)
 {
 	union bpf_attr attr;
