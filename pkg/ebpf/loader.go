@@ -94,6 +94,30 @@ const (
 
 	BPF_DIR_MNT     = "/sys/fs/bpf/"
 	BPF_DIR_GLOBALS	= "globals"
+
+	BPF_PROG_TYPE_UNSPEC 		= 0       /* Reserve 0 as invalidprogram type */
+	BPF_PROG_TYPE_SOCKET_FILTER 	= 1
+	BPF_PROG_TYPE_KPROBE 		= 2
+	BPF_PROG_TYPE_SCHED_CLS 	= 3
+	BPF_PROG_TYPE_SCHED_ACT		= 4
+	BPF_PROG_TYPE_TRACEPOINT	= 5
+	BPF_PROG_TYPE_XDP 		= 6
+	BPF_PROG_TYPE_PERF_EVENT 	= 7
+	BPF_PROG_TYPE_CGROUP_SKB 	= 8
+	BPF_PROG_TYPE_CGROUP_SOCK 	= 9
+	BPF_PROG_TYPE_LWT_IN 		= 10
+	BPF_PROG_TYPE_LWT_OUT 		= 11
+	BPF_PROG_TYPE_LWT_XMIT 		= 12
+	BPF_PROG_TYPE_SOCK_OPS 		= 13
+	BPF_PROG_TYPE_SK_SKB 		= 14
+	BPF_PROG_TYPE_CGROUP_DEVICE 	= 15
+	BPF_PROG_TYPE_SK_MSG 		= 16
+	BPF_PROG_TYPE_RAW_TRACEPOINT 	= 17
+	BPF_PROG_TYPE_CGROUP_SOCK_ADDR 	= 18
+	BPF_PROG_TYPE_LWT_SEG6LOCAL 	= 19
+	BPF_PROG_TYPE_LIRC_MODE2 	= 20
+	BPF_PROG_TYPE_SK_REUSEPORT 	= 21
+	BPF_PROG_TYPE_FLOW_DISSECTOR 	= 22
 )
 
 /*
@@ -148,6 +172,41 @@ type BpfMapPin struct {
 	FileFlags uint32
 }
 
+/*
+	struct { anonymous struct used by BPF_PROG_LOAD command
+		__u32		prog_type;	one of enum bpf_prog_type 
+		__u32		insn_cnt;
+		__aligned_u64	insns;
+		__aligned_u64	license;
+		__u32		log_level;	verbosity level of verifier 
+		__u32		log_size;	size of user buffer 
+		__aligned_u64	log_buf;	user supplied buffer 
+		__u32		kern_version;	not used 
+		__u32		prog_flags;
+		char		prog_name[BPF_OBJ_NAME_LEN];
+		__u32		prog_ifindex;	ifindex of netdev to prep for 
+		For some prog types expected attach type must be known at
+		  load time to verify attach type specific parts of prog
+		  (context accesses, allowed helpers, etc).
+		 
+		__u32		expected_attach_type;
+		__u32		prog_btf_fd;	 fd pointing to BTF type data 
+		__u32		func_info_rec_size;	userspace bpf_func_info size 
+		__aligned_u64	func_info;	func info 
+		__u32		func_info_cnt;	number of bpf_func_info records
+		__u32		line_info_rec_size;	userspace bpf_line_info size
+		__aligned_u64	line_info;	line info 
+		__u32		line_info_cnt;	number of bpf_line_info records 
+	};
+*/
+
+type BpfProgDef struct {
+	Type uint32
+	InsnCnt uint32
+	Insns uintptr
+	License uintptr
+}
+
 func (m *BpfMapData) CreateMap() (int, error) {
 	var log = logger.Get()
 	// This struct must be in sync with union bpf_attr's anonymous struct
@@ -194,6 +253,47 @@ func (m *BpfMapData) PinMap(mapFD int) (error) {
 
 	if m.Def.Pinning == PIN_GLOBAL_NS {
 		//pinPath := BPF_DIR_MNT+"tc/"+BPF_DIR_GLOBALS+"/test"
+		//fd := mapFD
+		pinPath := "/sys/fs/bpf/tc/globals/my-name"
+
+		err := os.MkdirAll(filepath.Dir(pinPath), 0755)
+		if err != nil {
+			log.Infof("error creating directory %q: %v", filepath.Dir(pinPath), err)
+			return fmt.Errorf("error creating directory %q: %v", filepath.Dir(pinPath), err)
+		}
+		_, err = os.Stat(pinPath)
+		if err == nil {
+			log.Infof("aborting, found file at %q", pinPath)
+			return fmt.Errorf("aborting, found file at %q", pinPath)
+		}
+		if err != nil && !os.IsNotExist(err) {
+			log.Infof("failed to stat %q: %v", pinPath, err)
+			return fmt.Errorf("failed to stat %q: %v", pinPath, err)
+		}
+		pinPathC := C.CString(pinPath)
+		defer C.free(unsafe.Pointer(pinPathC))
+
+		pinAttr := BpfMapPin{
+			Fd:    uint32(mapFD),
+			Pathname: uintptr(unsafe.Pointer(pinPathC)),
+		}
+		pinData := unsafe.Pointer(&pinAttr)
+		pinDataSize := unsafe.Sizeof(pinData)
+
+		log.Infof("Calling BPFsys for FD %d and Path %s",mapFD, pinPath)
+
+		ret, _, errno := unix.Syscall(
+			unix.SYS_BPF,
+			BPF_OBJ_PIN,
+			uintptr(pinData),
+			pinDataSize,
+		)
+		if errno < 0 {
+			log.Infof("Unable to pin map and ret %d and err %s", int(ret), errno)
+			return fmt.Errorf("Unable to pin map: %s", errno)
+		}
+		log.Infof("Pin done with fd : %d and errno %d", ret, errno)
+		return nil
 
 		/*
 		err := os.MkdirAll(path.Dir(pathname), 0644)
@@ -226,6 +326,8 @@ func (m *BpfMapData) PinMap(mapFD int) (error) {
 		log.Infof("Pin done with fd : %d and errno %d", ret, errno)
 		return nil
 		*/
+
+		/*
 		fd := mapFD
 		pinPath := "/sys/fs/bpf/tc/globals/my-name"
 		err := os.MkdirAll(filepath.Dir(pinPath), 0755)
@@ -249,8 +351,46 @@ func (m *BpfMapData) PinMap(mapFD int) (error) {
 			log.Infof("error pinning object to %q: %v", pinPath, err)
 			return fmt.Errorf("error pinning object to %q: %v", pinPath, err)
 		}
-		return nil
+		*/
 	}
 	return nil
 
+}
+
+func (m *BpfProgDef) LoadProg(progType string) (int, error) {
+	var log = logger.Get()
+	
+	var prog_type uint32
+	switch(progType) {
+	case "xdp":
+		prog_type = BPF_PROG_TYPE_XDP
+	default:
+		prog_type = BPF_PROG_TYPE_UNSPEC	 
+	}
+	
+	loadProg := BpfProgDef{
+		Type: uint32(prog_type),
+		InsnCnt: m.InsnCnt,
+		Insns: m.Insns,
+		License: m.License,
+	}
+	
+	progData := unsafe.Pointer(&loadProg)
+	progDataSize := unsafe.Sizeof(loadProg)
+
+	log.Infof("Calling BPFsys for prog load ")
+	ret, _, errno := unix.Syscall(
+		unix.SYS_BPF,
+		BPF_PROG_LOAD,
+		uintptr(progData),
+		progDataSize,
+	)
+	if errno < 0 {
+		log.Infof("Unable to load prog and ret %d and err %s", int(ret), errno)
+		return int(ret), fmt.Errorf("Unable to load prog: %s", errno)
+	}
+
+
+	log.Infof("Load prog done with fd : %d", int(ret))
+	return int(ret), nil
 }

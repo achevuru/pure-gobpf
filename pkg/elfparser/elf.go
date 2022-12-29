@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"encoding/binary"
 	"path"
+	"unsafe"
+	"strings"
 
 	"github.com/jayanthvn/pure-gobpf/pkg/ebpf"
 	"github.com/jayanthvn/pure-gobpf/pkg/logger"
@@ -132,6 +134,27 @@ func loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, elfFile *elf.File)
 	return nil
 }
 
+func loadElfProgSection(dataProg *elf.Section, license string, progType string) error {
+	var log = logger.Get()
+	data, err := dataProg.Data()
+	if err != nil {
+		log.Infof("Error while loading section")
+		return fmt.Errorf("error while loading section': %w", err)
+	}
+	
+	progData := ebpf.BpfProgDef{
+		InsnCnt: uint32(C.int(dataProg.Size)),
+		Insns: uintptr(unsafe.Pointer(&data[0])),
+		License: uintptr(unsafe.Pointer(C.CString(string(license)))),
+	}
+	progFD, _ := progData.LoadProg(progType)
+	if (progFD == -1) {
+		log.Infof("Failed to load prog")
+		return fmt.Errorf("Failed to Load the prog")	
+	}
+	return nil
+}
+
 func doLoadELF(r io.ReaderAt) error {
 	var log = logger.Get()
 	elfFile, err := elf.NewFile(r)
@@ -149,7 +172,9 @@ func doLoadELF(r io.ReaderAt) error {
 			if err != nil {
 				return fmt.Errorf("Failed to read data for section %s: %v", section.Name, err)
 			}
-			license = NullTerminatedStringToString(data)
+			license = string(data)
+			log.Infof("License %s", license)
+			//license = NullTerminatedStringToString(data)
 			break
 		} else if section.Name == "maps" {
 			dataMaps = section
@@ -157,13 +182,28 @@ func doLoadELF(r io.ReaderAt) error {
 		} 
 	}
 
-	log.Infof("License %s", license)
 	log.Infof("strtabidx %d", strtabidx)
 	
 	if (dataMaps != nil) {
 		err := loadElfMapsSection(mapsShndx, dataMaps, elfFile)
 		if err != nil {
 			return nil
+		}
+	}
+
+	//Load prog
+	for _, section := range elfFile.Sections {
+		if section.Type != elf.SHT_PROGBITS {
+			continue
+		}
+		progType := strings.ToLower(strings.Split(section.Name, "/")[0])
+		if progType != "xdp" {
+			return fmt.Errorf("Not supported program")
+		}
+		dataProg := section
+		err := loadElfProgSection(dataProg, license, progType)
+		if err != nil {
+			return fmt.Errorf("Failed to load prog %q - %v", dataProg.Name, err)
 		}
 	}
 	return nil
