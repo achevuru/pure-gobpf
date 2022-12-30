@@ -290,7 +290,7 @@ func (m *BpfMapData) PinMap(mapFD int) (error) {
 			Pathname: uintptr(unsafe.Pointer(&cPath[0])),
 		}
 		pinData := unsafe.Pointer(&pinAttr)
-		pinDataSize := unsafe.Sizeof(pinData)
+		pinDataSize := unsafe.Sizeof(pinAttr)
 
 		log.Infof("Calling BPFsys for FD %d and Path %s",mapFD, pinPath)
 
