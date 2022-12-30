@@ -166,8 +166,12 @@ type BpfMapData struct {
 	Name [16]byte 
 }
 
+type Pointer struct {
+	ptr unsafe.Pointer
+}
+
 type BpfMapPin struct {
-	Pathname  uintptr
+	Pathname  Pointer
 	Fd     uint32
 	FileFlags uint32
 }
@@ -273,9 +277,16 @@ func (m *BpfMapData) PinMap(mapFD int) (error) {
 		pinPathC := C.CString(pinPath)
 		defer C.free(unsafe.Pointer(pinPathC))
 
+		p, err := unix.BytePtrFromString(pinPath)
+		if err != nil {
+			return fmt.Errorf("failed to create byte ptr to string: %v", err)
+		}
+	
+		pathPointer := Pointer{ptr: unsafe.Pointer(p)}
+
 		pinAttr := BpfMapPin{
 			Fd:    uint32(mapFD),
-			Pathname: uintptr(unsafe.Pointer(pinPathC)),
+			Pathname: pathPointer,
 		}
 		pinData := unsafe.Pointer(&pinAttr)
 		pinDataSize := unsafe.Sizeof(pinData)
