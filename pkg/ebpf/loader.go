@@ -35,7 +35,7 @@ static int ebpf_prog_load(const char *name, __u32 prog_type, const void *insns, 
 	attr.log_level = 0;
 	attr.kern_version = kern_version;
 	// program name
-	strncpy((char*)&attr.prog_name, name, BPF_OBJ_NAME_LEN - 1);
+	//strncpy((char*)&attr.prog_name, name, BPF_OBJ_NAME_LEN - 1);
  	return syscall(__NR_bpf, BPF_PROG_LOAD, &attr, sizeof(attr));
 }
 */
