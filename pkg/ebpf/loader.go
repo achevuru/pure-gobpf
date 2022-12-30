@@ -16,6 +16,27 @@ int bpf_pin_object(int fd, const char *pathname)
 	attr.bpf_fd = fd;
 	return syscall(__NR_bpf, BPF_OBJ_PIN, &attr, sizeof(attr));
 }
+
+// Load eBPF program into kernel
+static int ebpf_prog_load(const char *name, __u32 prog_type, const void *insns, __u32 insns_cnt,
+	const char *license, __u32 kern_version, void *log_buf, size_t log_size)
+{
+	union bpf_attr attr = {};
+	// Try to load program without trace info - it takes too much memory
+	// for verifier to put all trace messages even for correct programs
+	// and may cause load error because of log buffer is too small.
+	attr.prog_type = prog_type;
+	attr.insn_cnt = insns_cnt;
+	attr.insns = ptr_to_u64(insns);
+	attr.license = ptr_to_u64(license);
+	attr.log_buf = ptr_to_u64(NULL);
+	attr.log_size = 0;
+	attr.log_level = 0;
+	attr.kern_version = kern_version;
+	// program name
+	strncpy((char*)&attr.prog_name, name, BPF_OBJ_NAME_LEN - 1);
+ 	return syscall(__NR_bpf, BPF_PROG_LOAD, &attr, sizeof(attr));
+}
 */
 import "C"
 
@@ -368,7 +389,7 @@ func (m *BpfMapData) PinMap(mapFD int) (error) {
 	return nil
 
 }
-
+/*
 func (m *BpfProgDef) LoadProg(progType string) (int, error) {
 	var log = logger.Get()
 	
@@ -379,7 +400,8 @@ func (m *BpfProgDef) LoadProg(progType string) (int, error) {
 	default:
 		prog_type = BPF_PROG_TYPE_UNSPEC	 
 	}
-	
+
+	/*
 	loadProg := BpfProgDef{
 		Type: uint32(prog_type),
 		InsnCnt: m.InsnCnt,
@@ -405,4 +427,21 @@ func (m *BpfProgDef) LoadProg(progType string) (int, error) {
 
 	log.Infof("Load prog done with fd : %d", int(ret))
 	return int(ret), nil
+	*/
+	/*
+	res := int(C.ebpf_prog_load(
+		name,
+		C.__u32(prog_type),
+		m.Insns,
+		C.__u32(prog.GetSize())/bpfInstructionLen,
+		license,
+		C.__u32(prog.kernelVersion),
+		unsafe.Pointer(&logBuf[0]),
+		C.size_t(unsafe.Sizeof(logBuf))))
+
+	if res == -1 {
+		return fmt.Errorf("ebpf_prog_load() failed: %s",
+			NullTerminatedStringToString(logBuf[:]))
+	}
 }
+*/

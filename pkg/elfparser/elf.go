@@ -2,6 +2,11 @@ package elfparser
 
 /*
 #include <stdint.h>
+#include <linux/unistd.h>
+#include <linux/bpf.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 struct bpf_map_def {
   uint32_t map_type;
@@ -15,6 +20,31 @@ struct bpf_map_def {
 
 #define BPF_MAP_DEF_SIZE sizeof(struct bpf_map_def)
 
+
+__u64 ptr_to_u64(void *ptr)
+{
+	return (__u64) (unsigned long) ptr;
+}
+
+static int bpf_prog_load(enum bpf_prog_type prog_type,
+	const struct bpf_insn *insns, int prog_len,
+	const char *license, int kern_version)
+{
+	int ret;
+	union bpf_attr attr;
+	memset(&attr, 0, sizeof(attr));
+	attr.prog_type = prog_type;
+	attr.insn_cnt = prog_len / sizeof(struct bpf_insn);
+	attr.insns = ptr_to_u64((void *) insns);
+	attr.license = ptr_to_u64((void *) license);
+	attr.log_buf = ptr_to_u64(NULL);
+	attr.log_size = 0;
+	attr.log_level = 0;
+	attr.kern_version = kern_version;
+	ret = syscall(__NR_bpf, BPF_PROG_LOAD, &attr, sizeof(attr));
+	return ret;
+}
+
 */
 import "C"
 
@@ -27,6 +57,9 @@ import (
 	"path"
 	"unsafe"
 	"strings"
+	"strconv"
+	"regexp"
+	"syscall"
 
 	"github.com/jayanthvn/pure-gobpf/pkg/ebpf"
 	"github.com/jayanthvn/pure-gobpf/pkg/logger"
@@ -134,6 +167,51 @@ func loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, elfFile *elf.File)
 	return nil
 }
 
+var versionRegex = regexp.MustCompile(`^(\d+)\.(\d+).(\d+).*$`)
+
+func utsnameStr(in []int8) string {
+	out := make([]byte, len(in))
+	for i := 0; i < len(in); i++ {
+		if in[i] == 0 {
+			break
+		}
+		out = append(out, byte(in[i]))
+	}
+	return string(out)
+}
+
+func KernelVersionFromReleaseString(releaseString string) (uint32, error) {
+	versionParts := versionRegex.FindStringSubmatch(releaseString)
+	if len(versionParts) != 4 {
+		return 0, fmt.Errorf("got invalid release version %q (expected format '4.3.2-1')", releaseString)
+	}
+	major, err := strconv.Atoi(versionParts[1])
+	if err != nil {
+		return 0, err
+	}
+
+	minor, err := strconv.Atoi(versionParts[2])
+	if err != nil {
+		return 0, err
+	}
+
+	patch, err := strconv.Atoi(versionParts[3])
+	if err != nil {
+		return 0, err
+	}
+	out := major*256*256 + minor*256 + patch
+	return uint32(out), nil
+}
+
+func currentVersionUname() (uint32, error) {
+	var buf syscall.Utsname
+	if err := syscall.Uname(&buf); err != nil {
+		return 0, err
+	}
+	releaseString := strings.Trim(utsnameStr(buf.Release[:]), "\x00")
+	return KernelVersionFromReleaseString(releaseString)
+}
+
 func loadElfProgSection(dataProg *elf.Section, license string, progType string) error {
 	var log = logger.Get()
 	data, err := dataProg.Data()
@@ -142,8 +220,9 @@ func loadElfProgSection(dataProg *elf.Section, license string, progType string) 
 		return fmt.Errorf("error while loading section': %w", err)
 	}
 	
+	/*
 	progData := ebpf.BpfProgDef{
-		InsnCnt: uint32(C.int(dataProg.Size)),
+		InsnCnt: uint32(C.int(len(data)))/8,
 		Insns: uintptr(unsafe.Pointer(&data[0])),
 		License: uintptr(unsafe.Pointer(C.CString(string(license)))),
 	}
@@ -151,6 +230,30 @@ func loadElfProgSection(dataProg *elf.Section, license string, progType string) 
 	if (progFD == -1) {
 		log.Infof("Failed to load prog")
 		return fmt.Errorf("Failed to Load the prog")	
+	}
+	*/
+
+	version, err := currentVersionUname()
+	if err == nil {
+		log.Infof("Failed to get kernel")
+		return fmt.Errorf("Failed to get kernel version")
+	}
+
+	insns := (*C.struct_bpf_insn)(unsafe.Pointer(&data[0]))
+
+	lp := unsafe.Pointer(C.CString(license))
+	defer C.free(lp)
+
+	var prog_t uint32
+	if progType == "xdp" {
+		prog_t = 6
+		progFd, err := C.bpf_prog_load(prog_t,
+			insns, C.int(dataProg.Size),
+			(*C.char)(lp), C.int(version))
+		if progFd < 0 {
+			return fmt.Errorf("error while loading %q (%v)%s", dataProg.Name, err)
+		}
+		log.Infof("loaded prog")
 	}
 	return nil
 }
