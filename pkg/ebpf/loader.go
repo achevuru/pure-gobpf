@@ -284,7 +284,7 @@ func (m *BpfMapData) PinMap(mapFD int) (error) {
 	
 		pathPointer := Pointer{ptr: unsafe.Pointer(p)}
 
-		log.Infof("byte ptr %d string %d pathPointersize %d", unsafe.Sizeof(p), unsafe.Sizeof(pinPath), unsafe.Sizeof(pathPointer))
+		log.Infof("byte ptr %d string %d pathPointersize %d mapfd %d", unsafe.Sizeof(p), unsafe.Sizeof(pinPath), unsafe.Sizeof(pathPointer), unsafe.Sizeof(mapFD))
 		pinAttr := BpfMapPin{
 			Fd:    uint32(mapFD),
 			Pathname: pathPointer,
