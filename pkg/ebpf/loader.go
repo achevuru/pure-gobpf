@@ -166,12 +166,8 @@ type BpfMapData struct {
 	Name [16]byte 
 }
 
-type Pointer struct {
-	ptr unsafe.Pointer
-}
-
 type BpfMapPin struct {
-	Pathname  Pointer
+	Pathname  uintptr
 	Fd     uint32
 	FileFlags uint32
 }
@@ -274,6 +270,7 @@ func (m *BpfMapData) PinMap(mapFD int) (error) {
 			log.Infof("failed to stat %q: %v", pinPath, err)
 			return fmt.Errorf("failed to stat %q: %v", pinPath, err)
 		}
+		/*
 		pinPathC := C.CString(pinPath)
 		defer C.free(unsafe.Pointer(pinPathC))
 
@@ -283,11 +280,14 @@ func (m *BpfMapData) PinMap(mapFD int) (error) {
 		}
 	
 		pathPointer := Pointer{ptr: unsafe.Pointer(p)}
+                */
 
-		log.Infof("byte ptr %d string %d pathPointersize %d mapfd %d", unsafe.Sizeof(p), unsafe.Sizeof(pinPath), unsafe.Sizeof(pathPointer), unsafe.Sizeof(mapFD))
+		cPath :=  []byte(pinPath + "\x00")
+
+		//log.Infof("byte ptr %d string %d pathPointersize %d mapfd %d", unsafe.Sizeof(p), unsafe.Sizeof(pinPath), unsafe.Sizeof(pathPointer), unsafe.Sizeof(mapFD))
 		pinAttr := BpfMapPin{
 			Fd:    uint32(mapFD),
-			Pathname: pathPointer,
+			Pathname: uintptr(unsafe.Pointer(&cPath[0])),
 		}
 		pinData := unsafe.Pointer(&pinAttr)
 		pinDataSize := unsafe.Sizeof(pinData)
@@ -296,9 +296,9 @@ func (m *BpfMapData) PinMap(mapFD int) (error) {
 
 		ret, _, errno := unix.Syscall(
 			unix.SYS_BPF,
-			BPF_OBJ_PIN,
+			uintptr(BPF_OBJ_PIN),
 			uintptr(pinData),
-			pinDataSize,
+			uintptr(int(pinDataSize)),
 		)
 		if errno < 0 {
 			log.Infof("Unable to pin map and ret %d and err %s", int(ret), errno)
