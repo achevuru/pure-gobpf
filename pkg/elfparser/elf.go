@@ -197,12 +197,15 @@ func doLoadELF(r io.ReaderAt) error {
 			continue
 		}
 		progType := strings.ToLower(strings.Split(section.Name, "/")[0])
+		log.Infof("Found the progType %s", progType)
 		if progType != "xdp" {
+			log.Infof("Not supported program")
 			return fmt.Errorf("Not supported program")
 		}
 		dataProg := section
 		err := loadElfProgSection(dataProg, license, progType)
 		if err != nil {
+			log.Infof("Failed to load the prog")
 			return fmt.Errorf("Failed to load prog %q - %v", dataProg.Name, err)
 		}
 	}
