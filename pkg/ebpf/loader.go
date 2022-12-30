@@ -393,9 +393,9 @@ func (m *BpfProgDef) LoadProg(progType string) (int, error) {
 	log.Infof("Calling BPFsys for prog load ")
 	ret, _, errno := unix.Syscall(
 		unix.SYS_BPF,
-		BPF_PROG_LOAD,
+		uintptr(BPF_PROG_LOAD),
 		uintptr(progData),
-		progDataSize,
+		uintptr(int(progDataSize)),
 	)
 	if errno < 0 {
 		log.Infof("Unable to load prog and ret %d and err %s", int(ret), errno)
