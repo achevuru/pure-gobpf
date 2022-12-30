@@ -7,6 +7,7 @@ package ebpf
 #include <unistd.h>
 
 #define ptr_to_u64(ptr) ((__u64)(unsigned long)(ptr))
+#define BPF_OBJ_NAME_LEN 16U
 
 int bpf_pin_object(int fd, const char *pathname)
 {
