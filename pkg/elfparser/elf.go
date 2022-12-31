@@ -234,7 +234,7 @@ func loadElfProgSection(dataProg *elf.Section, license string, progType string) 
 	*/
 
 	version, err := KernelVersionFromReleaseString("5.4.209-116") 
-	if err == nil {
+	if err != nil {
 		log.Infof("Failed to get kernel")
 		return fmt.Errorf("Failed to get kernel version")
 	}
