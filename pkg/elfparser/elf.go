@@ -222,15 +222,15 @@ func loadElfProgSection(dataProg *elf.Section, license string, progType string) 
 		return fmt.Errorf("Failed to get kernel version")
 	}
 
+	var defaultLogSize uint32 = 524288
+	logBuf := make([]int, defaultLogSize) 
 	progData := ebpf.BpfProgDef{
 		InsnCnt: uint32(C.int(len(data))),
 		Insns: uint64(*(*uint64)(unsafe.Pointer(&data[0]))),
 		License: uint64(*(*uint64)(unsafe.Pointer(C.CString(string(license))))),
-		/*
-		LogBuf: uint64(*(*uint64)(unsafe.Pointer(nil))),
+		LogBuf: uint64(*(*uint64)(unsafe.Pointer(&logBuf[0]))),
 		LogLevel: uint32(0),
-		LogSize: uint32(0),
-		*/
+		LogSize: uint32(C.int(len(logBuf))),
 		KernelVersion: uint32(version),
 	}
 	progFD, _ := progData.LoadProg(progType)
