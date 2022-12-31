@@ -9,6 +9,8 @@ package ebpf
 #define ptr_to_u64(ptr) ((__u64)(unsigned long)(ptr))
 #define BPF_OBJ_NAME_LEN 16U
 
+#define BPF_INS_DEF_SIZE sizeof(struct bpf_insn)
+
 int bpf_pin_object(int fd, const char *pathname)
 {
 	union bpf_attr attr;
@@ -223,10 +225,14 @@ type BpfMapPin struct {
 */
 
 type BpfProgDef struct {
-	Type uint32
-	InsnCnt uint32
-	Insns uintptr
-	License uintptr
+	Type 		uint32
+	InsnCnt 	uint32
+	Insns 		uint64
+	License 	uint64
+	LogBuf 		uint64
+	LogSize 	uint32
+	LogLevel 	uint32
+	KernelVersion 	uint32
 }
 
 func (m *BpfMapData) CreateMap() (int, error) {
@@ -390,7 +396,7 @@ func (m *BpfMapData) PinMap(mapFD int) (error) {
 	return nil
 
 }
-/*
+
 func (m *BpfProgDef) LoadProg(progType string) (int, error) {
 	var log = logger.Get()
 	
@@ -402,12 +408,15 @@ func (m *BpfProgDef) LoadProg(progType string) (int, error) {
 		prog_type = BPF_PROG_TYPE_UNSPEC	 
 	}
 
-	/*
 	loadProg := BpfProgDef{
 		Type: uint32(prog_type),
-		InsnCnt: m.InsnCnt,
+		InsnCnt: m.InsnCnt/C.BPF_INS_DEF_SIZE,
 		Insns: m.Insns,
 		License: m.License,
+		LogBuf: m.LogBuf,
+		LogSize: m.LogSize,
+		LogLevel: m.LogLevel,
+		KernelVersion: m.KernelVersion,
 	}
 	
 	progData := unsafe.Pointer(&loadProg)
@@ -428,21 +437,4 @@ func (m *BpfProgDef) LoadProg(progType string) (int, error) {
 
 	log.Infof("Load prog done with fd : %d", int(ret))
 	return int(ret), nil
-	*/
-	/*
-	res := int(C.ebpf_prog_load(
-		name,
-		C.__u32(prog_type),
-		m.Insns,
-		C.__u32(prog.GetSize())/bpfInstructionLen,
-		license,
-		C.__u32(prog.kernelVersion),
-		unsafe.Pointer(&logBuf[0]),
-		C.size_t(unsafe.Sizeof(logBuf))))
-
-	if res == -1 {
-		return fmt.Errorf("ebpf_prog_load() failed: %s",
-			NullTerminatedStringToString(logBuf[:]))
-	}
 }
-*/

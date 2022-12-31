@@ -19,12 +19,8 @@ struct bpf_map_def {
 };
 
 #define BPF_MAP_DEF_SIZE sizeof(struct bpf_map_def)
+#define ptr_to_u64(ptr) ((__u64)(unsigned long)(ptr))
 
-
-__u64 ptr_to_u64(void *ptr)
-{
-	return (__u64) (unsigned long) ptr;
-}
 
 static int bpf_prog_load(enum bpf_prog_type prog_type,
 	const struct bpf_insn *insns, int prog_len,
@@ -219,21 +215,31 @@ func loadElfProgSection(dataProg *elf.Section, license string, progType string) 
 		log.Infof("Error while loading section")
 		return fmt.Errorf("error while loading section': %w", err)
 	}
-	
-	/*
+
+	version, err := currentVersionUname() 
+	if err != nil {
+		log.Infof("Failed to get kernel")
+		return fmt.Errorf("Failed to get kernel version")
+	}
+
 	progData := ebpf.BpfProgDef{
-		InsnCnt: uint32(C.int(len(data)))/8,
-		Insns: uintptr(unsafe.Pointer(&data[0])),
-		License: uintptr(unsafe.Pointer(C.CString(string(license)))),
+		InsnCnt: uint32(C.int(len(data))),
+		Insns: uint64(*(*uint64)(unsafe.Pointer(&data[0]))),
+		License: uint64(*(*uint64)(unsafe.Pointer(C.CString(string(license))))),
+		LogBuf: uint64(*(*uint64)(unsafe.Pointer(nil))),
+		LogLevel: uint32(0),
+		LogSize: uint32(0),
+		KernelVersion: uint32(version),
 	}
 	progFD, _ := progData.LoadProg(progType)
 	if (progFD == -1) {
 		log.Infof("Failed to load prog")
 		return fmt.Errorf("Failed to Load the prog")	
 	}
-	*/
+	log.Infof("loaded prog with %d", progFD)
 
-	version, err := KernelVersionFromReleaseString("5.4.209-116") 
+	/*
+	version, err := currentVersionUname() 
 	if err != nil {
 		log.Infof("Failed to get kernel")
 		return fmt.Errorf("Failed to get kernel version")
@@ -253,8 +259,8 @@ func loadElfProgSection(dataProg *elf.Section, license string, progType string) 
 		if progFd < 0 {
 			return fmt.Errorf("error while loading %q (%v)%s", dataProg.Name, err)
 		}
-		log.Infof("loaded prog")
-	}
+		log.Infof("loaded prog with %d", progFd)
+	}*/
 	return nil
 }
 
