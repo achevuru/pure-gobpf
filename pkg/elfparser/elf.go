@@ -216,7 +216,7 @@ func loadElfProgSection(dataProg *elf.Section, license string, progType string) 
 		return fmt.Errorf("error while loading section': %w", err)
 	}
 
-	version, err := currentVersionUname() 
+	version, err := KernelVersionFromReleaseString("5.4.209-116") 
 	if err != nil {
 		log.Infof("Failed to get kernel")
 		return fmt.Errorf("Failed to get kernel version")
