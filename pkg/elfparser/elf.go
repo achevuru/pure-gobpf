@@ -226,9 +226,11 @@ func loadElfProgSection(dataProg *elf.Section, license string, progType string) 
 		InsnCnt: uint32(C.int(len(data))),
 		Insns: uint64(*(*uint64)(unsafe.Pointer(&data[0]))),
 		License: uint64(*(*uint64)(unsafe.Pointer(C.CString(string(license))))),
+		/*
 		LogBuf: uint64(*(*uint64)(unsafe.Pointer(nil))),
 		LogLevel: uint32(0),
 		LogSize: uint32(0),
+		*/
 		KernelVersion: uint32(version),
 	}
 	progFD, _ := progData.LoadProg(progType)
