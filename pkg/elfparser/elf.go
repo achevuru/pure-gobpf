@@ -223,12 +223,17 @@ func loadElfProgSection(dataProg *elf.Section, license string, progType string) 
 	}
 
 	var defaultLogSize uint32 = 524288
-	logBuf := make([]int, defaultLogSize) 
-	progData := ebpf.BpfProgDef{
-		InsnCnt: uint32(C.int(len(data))),
-		Insns: uint64(*(*uint64)(unsafe.Pointer(&data[0]))),
+	logBuf := make([]int, defaultLogSize)
+	/*
+	Insns: uint64(*(*uint64)(unsafe.Pointer(&data[0]))),
 		License: uint64(*(*uint64)(unsafe.Pointer(C.CString(string(license))))),
 		LogBuf: uint64(*(*uint64)(unsafe.Pointer(&logBuf[0]))),
+	*/ 
+	progData := ebpf.BpfProgDef{
+		InsnCnt: uint32(C.int(len(data))),
+		Insns: uintptr(unsafe.Pointer(&data[0])),
+		License: uintptr(unsafe.Pointer(C.CString(string(license)))),
+		LogBuf: uintptr(unsafe.Pointer(&logBuf[0])),
 		LogLevel: uint32(0),
 		LogSize: uint32(C.int(len(logBuf))),
 		KernelVersion: uint32(version),

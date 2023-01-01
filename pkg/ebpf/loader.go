@@ -227,9 +227,9 @@ type BpfMapPin struct {
 type BpfProgDef struct {
 	Type 		uint32
 	InsnCnt 	uint32
-	Insns 		uint64
-	License 	uint64
-	LogBuf 		uint64
+	Insns 		uintptr
+	License 	uintptr
+	LogBuf 		uintptr
 	LogSize 	uint32
 	LogLevel 	uint32
 	KernelVersion 	uint32
