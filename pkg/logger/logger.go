@@ -17,7 +17,6 @@ var log *Logger
 func Get() *Logger {
 	if log == nil {
 		log = New()
-		//log.Info("Initialized new logger as an existing instance was not found")
 	}
 	return log
 }
