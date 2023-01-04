@@ -48,9 +48,12 @@ import (
 	"unsafe"
 	"os"
 	"path/filepath"
+	"debug/elf"
+	"runtime"
 	//"strings"
 
 	"golang.org/x/sys/unix"
+	"github.com/vishvananda/netlink"
 	"github.com/jayanthvn/pure-gobpf/pkg/logger"
 )
 
@@ -143,6 +146,8 @@ const (
 	BPF_PROG_TYPE_SK_REUSEPORT 	= 21
 	BPF_PROG_TYPE_FLOW_DISSECTOR 	= 22
 )
+
+const sizeofStructBpfInsn = 8
 
 /*
 struct bpf_elf_map {
@@ -397,17 +402,19 @@ func (m *BpfMapData) PinMap(mapFD int) (error) {
 
 }
 
-func (m *BpfProgDef) LoadProg(progType string) (int, error) {
+func (m *BpfProgDef) LoadProg(progType string, dataProg *elf.Section, licenseStr string) (int, error) {
 	var log = logger.Get()
-	
-	var prog_type uint32
+
+	/*
 	switch(progType) {
 	case "xdp":
 		prog_type = BPF_PROG_TYPE_XDP
 	default:
 		prog_type = BPF_PROG_TYPE_UNSPEC	 
 	}
+	*/
 
+	/*
 	loadProg := BpfProgDef{
 		Type: uint32(prog_type),
 		InsnCnt: m.InsnCnt/C.BPF_INS_DEF_SIZE,
@@ -436,5 +443,64 @@ func (m *BpfProgDef) LoadProg(progType string) (int, error) {
 
 
 	log.Infof("Load prog done with fd : %d", int(ret))
-	return int(ret), nil
+	*/
+
+/*
+// Create the bpf_attr structure
+attr := syscall.BpfAttr{
+    FileName: "/path/to/bpf/program.o",
+    ProgType: syscall.BPF_PROG_TYPE_SOCKET_FILTER,
+    Insns: &syscall.Insns{
+        // Pointer to the BPF program instructions
+        // (assume instructions is a slice of uint32 values)
+        Ptr: &instructions[0],
+        Len: uint32(len(instructions)),
+    },
+    License: "GPL",
+    LogLevel: 1,
+    LogSize: 4096,
+    LogBuf: make([]byte, 4096),
+}
+
+// Load the BPF program
+fd, _, err := unix.Syscall(unix.SYS_BPF_PROG_LOAD, uintptr(unsafe.Pointer(&attr)), uintptr(unsafe.Sizeof(attr)))
+if err != 0 {
+    panic(err)
+}
+defer unix.Close(int(fd))
+*/
+
+	logBuf := make([]byte, 65535)
+	program := netlink.BPFAttr{
+		ProgType: uint32(netlink.BPF_PROG_TYPE_XDP),
+		LogBuf:   uintptr(unsafe.Pointer(&logBuf[0])), // nolint: gosec
+		LogSize:  uint32(cap(logBuf) - 1),
+		LogLevel: 1,
+	}
+	data, err := dataProg.Data()
+	if err != nil {
+		return 0, err
+	}
+
+	program.Insns = uintptr(unsafe.Pointer(&data[0])) // nolint: gosec
+	program.InsnCnt = uint32(len(data) / sizeofStructBpfInsn)
+
+	license := []byte("licenseStr")
+	program.License = uintptr(unsafe.Pointer(&license[0])) // nolint: gosec
+	if err != nil {
+		return 0, err
+	}
+	fd, _, errno := unix.Syscall(unix.SYS_BPF,
+		BPF_PROG_LOAD,
+		uintptr(unsafe.Pointer(&program)), // nolint: gosec
+		unsafe.Sizeof(program))            // nolint: gosec
+	runtime.KeepAlive(data)
+	runtime.KeepAlive(license)
+
+	log.Infof("Load prog done with fd : %d", int(fd))
+	if errno != 0 {
+		log.Infof(string(logBuf))
+		return 0, errno
+	}
+	return int(fd), nil
 }

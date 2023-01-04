@@ -238,7 +238,7 @@ func loadElfProgSection(dataProg *elf.Section, license string, progType string) 
 		LogSize: uint32(C.int(len(logBuf))),
 		KernelVersion: uint32(version),
 	}
-	progFD, _ := progData.LoadProg(progType)
+	progFD, _ := progData.LoadProg(progType, dataProg, license)
 	if (progFD == -1) {
 		log.Infof("Failed to load prog")
 		return fmt.Errorf("Failed to Load the prog")	
@@ -325,6 +325,8 @@ func doLoadELF(r io.ReaderAt) error {
 			return fmt.Errorf("Failed to load prog %q - %v", dataProg.Name, err)
 		}
 	}
+
+
 	return nil
 }
 
