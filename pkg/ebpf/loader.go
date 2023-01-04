@@ -98,7 +98,7 @@ type BpfMapData struct {
 	Name [16]byte 
 }
 
-type BpfMapPin struct {
+type BpfPin struct {
 	Pathname  uintptr
 	Fd     uint32
 	FileFlags uint32
@@ -140,7 +140,7 @@ func (m *BpfMapData) CreateMap() (int, error) {
 	return int(ret), nil
 }
 
-func (m *BpfMapData) PinMap(mapFD int) (error) {
+func (m *BpfMapData) PinMap(mapFD int) error {
 	var log = logger.Get()
 	if m.Def.Pinning == PIN_NONE {
 		return nil
@@ -155,7 +155,7 @@ func (m *BpfMapData) PinMap(mapFD int) (error) {
 			return fmt.Errorf("error creating directory %q: %v", tcDir, err)
 		}
 
-		pinPath := tcDir+"/globals/my-name"
+		pinPath := tcDir+"/globals/map-name"
 
 		err = os.MkdirAll(filepath.Dir(pinPath), 0755)
 		if err != nil {
@@ -172,33 +172,73 @@ func (m *BpfMapData) PinMap(mapFD int) (error) {
 			return fmt.Errorf("failed to stat %q: %v", pinPath, err)
 		}
 
-		cPath :=  []byte(pinPath + "\x00")
-
-		pinAttr := BpfMapPin{
-			Fd:    uint32(mapFD),
-			Pathname: uintptr(unsafe.Pointer(&cPath[0])),
-		}
-		pinData := unsafe.Pointer(&pinAttr)
-		pinDataSize := unsafe.Sizeof(pinAttr)
-
-		log.Infof("Calling BPFsys for FD %d and Path %s",mapFD, pinPath)
-
-		ret, _, errno := unix.Syscall(
-			unix.SYS_BPF,
-			uintptr(BPF_OBJ_PIN),
-			uintptr(pinData),
-			uintptr(int(pinDataSize)),
-		)
-		if errno < 0 {
-			log.Infof("Unable to pin map and ret %d and err %s", int(ret), errno)
-			return fmt.Errorf("Unable to pin map: %s", errno)
-		}
-		log.Infof("Pin done with fd : %d and errno %d", ret, errno)
-		return nil
+		return PinObject(mapFD, pinPath)
 
 	}
 	return nil
 
+}
+
+func PinProg(progFD int) error {
+	var log = logger.Get()
+
+	tcDir := "/sys/fs/bpf/tc"
+
+	if _, err := os.Stat(tcDir); os.IsNotExist(err) {
+		//Create TC directory
+		err := os.MkdirAll(tcDir, 0755)
+		if err != nil {
+			log.Infof("error creating directory %q: %v", tcDir, err)
+			return fmt.Errorf("error creating directory %q: %v", tcDir, err)
+		}
+	}
+
+	pinPath := tcDir+"/globals/prog-name"
+
+	err := os.MkdirAll(filepath.Dir(pinPath), 0755)
+	if err != nil {
+		log.Infof("error creating directory %q: %v", filepath.Dir(pinPath), err)
+		return fmt.Errorf("error creating directory %q: %v", filepath.Dir(pinPath), err)
+	}
+	_, err = os.Stat(pinPath)
+	if err == nil {
+		log.Infof("aborting, found file at %q", pinPath)
+		return fmt.Errorf("aborting, found file at %q", pinPath)
+	}
+	if err != nil && !os.IsNotExist(err) {
+		log.Infof("failed to stat %q: %v", pinPath, err)
+		return fmt.Errorf("failed to stat %q: %v", pinPath, err)
+	}
+
+	return PinObject(progFD, pinPath)
+}
+
+func PinObject(objFD int, pinPath string) error {
+	var log = logger.Get()
+	cPath :=  []byte(pinPath + "\x00")
+
+	pinAttr := BpfPin{
+		Fd:    uint32(objFD),
+		Pathname: uintptr(unsafe.Pointer(&cPath[0])),
+	}
+	pinData := unsafe.Pointer(&pinAttr)
+	pinDataSize := unsafe.Sizeof(pinAttr)
+
+	log.Infof("Calling BPFsys for FD %d and Path %s",objFD, pinPath)
+
+	ret, _, errno := unix.Syscall(
+		unix.SYS_BPF,
+		uintptr(BPF_OBJ_PIN),
+		uintptr(pinData),
+		uintptr(int(pinDataSize)),
+	)
+	if errno < 0 {
+		log.Infof("Unable to pin map and ret %d and err %s", int(ret), errno)
+		return fmt.Errorf("Unable to pin map: %s", errno)
+	}
+	//TODO : might have to return FD for node agent
+	log.Infof("Pin done with fd : %d and errno %d", ret, errno)
+	return nil
 }
 
 func LoadProg(progType string, dataProg *elf.Section, licenseStr string) (int, error) {
@@ -243,6 +283,13 @@ func LoadProg(progType string, dataProg *elf.Section, licenseStr string) (int, e
 	if errno != 0 {
 		log.Infof(string(logBuf))
 		return 0, errno
+	}
+
+	//Pin the prog
+	err = PinProg(int(fd))
+	if err != nil {
+		log.Infof("pin prog failed %v", err)
+		return 0, err
 	}
 	return int(fd), nil
 }
