@@ -1,10 +1,10 @@
 package logger
 
 import (
-    "os"
-    "fmt"
+	"fmt"
+	"os"
 
-    logrus "github.com/sirupsen/logrus"
+	logrus "github.com/sirupsen/logrus"
 )
 
 type Logger struct {
@@ -12,6 +12,7 @@ type Logger struct {
 }
 
 const LOG_FILE = "/var/log/aws-routed-eni/ebpf-sdk.log"
+
 var log *Logger
 
 func Get() *Logger {

@@ -2,15 +2,16 @@ package ebpf
 
 import (
 	"fmt"
-	"github.com/vishvananda/netlink"
+
 	"github.com/jayanthvn/pure-gobpf/pkg/logger"
+	"github.com/vishvananda/netlink"
 )
 
 const (
-	XDP_ATTACH_MODE_NONE 	= 0
-	XDP_ATTACH_MODE_SKB 	= 1
-	XDP_ATTACH_MODE_DRV 	= 2
-	XDP_ATTACH_MODE_HW 	= 3
+	XDP_ATTACH_MODE_NONE = 0
+	XDP_ATTACH_MODE_SKB  = 1
+	XDP_ATTACH_MODE_DRV  = 2
+	XDP_ATTACH_MODE_HW   = 3
 )
 
 func XDPAttach(interfaceName string, progFD int) error {
@@ -32,7 +33,7 @@ func XDPAttach(interfaceName string, progFD int) error {
 }
 
 func XDPDetach(interfaceName string) error {
-	
+
 	var log = logger.Get()
 	link, err := netlink.LinkByName(interfaceName)
 	if err != nil {

@@ -2,9 +2,10 @@ package ebpf
 
 import (
 	"fmt"
+
+	"github.com/jayanthvn/pure-gobpf/pkg/logger"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
-	"github.com/jayanthvn/pure-gobpf/pkg/logger"
 )
 
 func TCIngressAttach(interfaceName string, progFD int) error {
@@ -20,12 +21,12 @@ func TCIngressAttach(interfaceName string, progFD int) error {
 		Handle:    netlink.MakeHandle(0xffff, 0),
 		Parent:    netlink.HANDLE_INGRESS,
 	}
-    
+
 	qdisc := &netlink.GenericQdisc{
 		QdiscAttrs: attrs,
 		QdiscType:  "clsact",
 	}
-    
+
 	if err := netlink.QdiscAdd(qdisc); err != nil {
 		log.Infof("Cannot add clsact")
 		return fmt.Errorf("cannot add clsact qdisc: %v", err)
@@ -38,7 +39,7 @@ func TCIngressAttach(interfaceName string, progFD int) error {
 			Parent:    uint32(netlink.HANDLE_MIN_INGRESS),
 			Handle:    0x1,
 			Protocol:  unix.ETH_P_ALL,
-			Priority: 1,
+			Priority:  1,
 		},
 		Fd:           progFD,
 		Name:         "handle_ingress",

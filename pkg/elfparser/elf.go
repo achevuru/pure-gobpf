@@ -24,10 +24,10 @@ import "C"
 
 import (
 	"debug/elf"
-	"os"
-	"io"
-	"fmt"
 	"encoding/binary"
+	"fmt"
+	"io"
+	"os"
 	"path"
 	"strings"
 
@@ -36,6 +36,27 @@ import (
 )
 
 //Ref:https://github.com/torvalds/linux/blob/v5.10/samples/bpf/bpf_load.c
+type ELFContext struct {
+	// .elf will have multiple sections and maps
+	Section map[string]ELFSection
+	Maps    map[string]ELFMap
+}
+
+type ELFSection struct {
+	// Each sections will have
+	SectionType int
+	Programs    map[string]ELFProgram
+}
+
+type ELFProgram struct {
+	progName string
+	progFD   int
+}
+
+type ELFMap struct {
+	mapName string
+	mapFD   int
+}
 
 func LoadBpfFile(path string) (int, error) {
 	var log = logger.Get()
@@ -92,12 +113,11 @@ func loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, elfFile *elf.File)
 			Pinning:    uint32(binary.LittleEndian.Uint32(data[offset+20 : offset+24])),
 		}
 
-		log.Infof("DUMP Type %d KeySize %d ValueSize %d MaxEntries %d Flags %d Pinning %d", uint32(binary.LittleEndian.Uint32(data[offset : offset+4])), 
-				uint32(binary.LittleEndian.Uint32(data[offset+4 : offset+8])), uint32(binary.LittleEndian.Uint32(data[offset+8 : offset+12])),
-			        uint32(binary.LittleEndian.Uint32(data[offset+12 : offset+16])), uint32(binary.LittleEndian.Uint32(data[offset+16 : offset+20])),
-			        uint32(binary.LittleEndian.Uint32(data[offset+20 : offset+24])))
+		log.Infof("DUMP Type %d KeySize %d ValueSize %d MaxEntries %d Flags %d Pinning %d", uint32(binary.LittleEndian.Uint32(data[offset:offset+4])),
+			uint32(binary.LittleEndian.Uint32(data[offset+4:offset+8])), uint32(binary.LittleEndian.Uint32(data[offset+8:offset+12])),
+			uint32(binary.LittleEndian.Uint32(data[offset+12:offset+16])), uint32(binary.LittleEndian.Uint32(data[offset+16:offset+20])),
+			uint32(binary.LittleEndian.Uint32(data[offset+20:offset+24])))
 
-		
 		for _, sym := range symbols {
 			if int(sym.Section) == mapsShndx && int(sym.Value) == offset {
 				var name [16]byte
@@ -118,14 +138,13 @@ func loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, elfFile *elf.File)
 		GlobalMapData = append(GlobalMapData, mapData)
 	}
 
-	
 	log.Infof("Total maps found - %d", len(GlobalMapData))
 
 	for index := 0; index < len(GlobalMapData); index++ {
 		log.Infof("Loading maps")
 		loadedMaps := GlobalMapData[index]
 		mapFD, _ := loadedMaps.CreateMap()
-		if (mapFD == -1) {
+		if mapFD == -1 {
 			//Even if one map fails, we error out
 			log.Infof("Failed to create map, continue to next map..just for debugging")
 			continue
@@ -139,16 +158,16 @@ func loadElfProgSection(dataProg *elf.Section, license string, progType string) 
 	var log = logger.Get()
 
 	progFD, _ := ebpf.LoadProg(progType, dataProg, license)
-	if (progFD == -1) {
+	if progFD == -1 {
 		log.Infof("Failed to load prog")
-		return -1, fmt.Errorf("Failed to Load the prog")	
+		return -1, fmt.Errorf("Failed to Load the prog")
 	}
 	log.Infof("loaded prog with %d", progFD)
 
 	return progFD, nil
 }
 
-func doLoadELF(r io.ReaderAt) (int,error) {
+func doLoadELF(r io.ReaderAt) (int, error) {
 	var log = logger.Get()
 	var err error
 	elfFile, err := elf.NewFile(r)
@@ -174,12 +193,12 @@ func doLoadELF(r io.ReaderAt) (int,error) {
 		} else if section.Name == "maps" {
 			dataMaps = section
 			mapsShndx = index
-		} 
+		}
 	}
 
 	log.Infof("strtabidx %d", strtabidx)
-	
-	if (dataMaps != nil) {
+
+	if dataMaps != nil {
 		err := loadElfMapsSection(mapsShndx, dataMaps, elfFile)
 		if err != nil {
 			return -1, nil
@@ -205,7 +224,5 @@ func doLoadELF(r io.ReaderAt) (int,error) {
 		}
 	}
 
-
 	return progFD, nil
 }
-

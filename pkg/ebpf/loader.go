@@ -1,4 +1,5 @@
 package ebpf
+
 /*
 #include <linux/unistd.h>
 #include <linux/bpf.h>
@@ -14,16 +15,16 @@ package ebpf
 import "C"
 
 import (
+	"debug/elf"
 	"fmt"
-	"unsafe"
 	"os"
 	"path/filepath"
-	"debug/elf"
 	"runtime"
+	"unsafe"
 
-	"golang.org/x/sys/unix"
-	"github.com/vishvananda/netlink"
 	"github.com/jayanthvn/pure-gobpf/pkg/logger"
+	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -77,13 +78,13 @@ const (
 	PIN_CUSTOM_NS = 3
 
 	BPF_DIR_MNT     = "/sys/fs/bpf/"
-	BPF_DIR_GLOBALS	= "globals"
+	BPF_DIR_GLOBALS = "globals"
 )
 
 const sizeofStructBpfInsn = 8
 
 type BpfMapDef struct {
-	Type uint32
+	Type       uint32
 	KeySize    uint32
 	ValueSize  uint32
 	MaxEntries uint32
@@ -93,14 +94,14 @@ type BpfMapDef struct {
 }
 
 type BpfMapData struct {
-	Def BpfMapDef
+	Def      BpfMapDef
 	numaNode uint32
-	Name [16]byte 
+	Name     [16]byte
 }
 
 type BpfPin struct {
 	Pathname  uintptr
-	Fd     uint32
+	Fd        uint32
 	FileFlags uint32
 }
 
@@ -109,19 +110,19 @@ func (m *BpfMapData) CreateMap() (int, error) {
 
 	mapCont := BpfMapData{
 		Def: BpfMapDef{
-			Type:    uint32(m.Def.Type),
+			Type:       uint32(m.Def.Type),
 			KeySize:    m.Def.KeySize,
 			ValueSize:  m.Def.ValueSize,
 			MaxEntries: m.Def.MaxEntries,
-			Flags:   m.Def.Flags,
-			InnerMapFd:    0,
+			Flags:      m.Def.Flags,
+			InnerMapFd: 0,
 		},
 		Name: m.Name,
 	}
 	mapData := unsafe.Pointer(&mapCont)
 	mapDataSize := unsafe.Sizeof(mapCont)
 
-	log.Infof("Calling BPFsys for name %s mapType %d keysize %d valuesize %d max entries %d and flags %d",string(m.Name[:]), m.Def.Type, m.Def.KeySize, m.Def.ValueSize, m.Def.MaxEntries, m.Def.Flags)
+	log.Infof("Calling BPFsys for name %s mapType %d keysize %d valuesize %d max entries %d and flags %d", string(m.Name[:]), m.Def.Type, m.Def.KeySize, m.Def.ValueSize, m.Def.MaxEntries, m.Def.Flags)
 
 	ret, _, errno := unix.Syscall(
 		unix.SYS_BPF,
@@ -129,12 +130,11 @@ func (m *BpfMapData) CreateMap() (int, error) {
 		uintptr(mapData),
 		mapDataSize,
 	)
-        
+
 	if errno < 0 {
 		log.Infof("Unable to create map and ret %d and err %s", int(ret), errno)
 		return int(ret), fmt.Errorf("Unable to create map: %s", errno)
 	}
-
 
 	log.Infof("Create map done with fd : %d", int(ret))
 	return int(ret), nil
@@ -155,7 +155,7 @@ func (m *BpfMapData) PinMap(mapFD int) error {
 			return fmt.Errorf("error creating directory %q: %v", tcDir, err)
 		}
 
-		pinPath := tcDir+"/globals/map-name"
+		pinPath := tcDir + "/globals/map-name"
 
 		err = os.MkdirAll(filepath.Dir(pinPath), 0755)
 		if err != nil {
@@ -193,7 +193,7 @@ func PinProg(progFD int) error {
 		}
 	}
 
-	pinPath := tcDir+"/globals/prog-name"
+	pinPath := tcDir + "/globals/prog-name"
 
 	err := os.MkdirAll(filepath.Dir(pinPath), 0755)
 	if err != nil {
@@ -215,16 +215,16 @@ func PinProg(progFD int) error {
 
 func PinObject(objFD int, pinPath string) error {
 	var log = logger.Get()
-	cPath :=  []byte(pinPath + "\x00")
+	cPath := []byte(pinPath + "\x00")
 
 	pinAttr := BpfPin{
-		Fd:    uint32(objFD),
+		Fd:       uint32(objFD),
 		Pathname: uintptr(unsafe.Pointer(&cPath[0])),
 	}
 	pinData := unsafe.Pointer(&pinAttr)
 	pinDataSize := unsafe.Sizeof(pinAttr)
 
-	log.Infof("Calling BPFsys for FD %d and Path %s",objFD, pinPath)
+	log.Infof("Calling BPFsys for FD %d and Path %s", objFD, pinPath)
 
 	ret, _, errno := unix.Syscall(
 		unix.SYS_BPF,
@@ -245,15 +245,15 @@ func LoadProg(progType string, dataProg *elf.Section, licenseStr string) (int, e
 	var log = logger.Get()
 
 	var prog_type uint32
-	switch(progType) {
+	switch progType {
 	case "xdp":
 		prog_type = uint32(netlink.BPF_PROG_TYPE_XDP)
 	case "tc_cls":
-		prog_type = uint32(netlink.BPF_PROG_TYPE_SCHED_CLS)	
+		prog_type = uint32(netlink.BPF_PROG_TYPE_SCHED_CLS)
 	case "tc_act":
 		prog_type = uint32(netlink.BPF_PROG_TYPE_SCHED_ACT)
 	default:
-		prog_type = uint32(netlink.BPF_PROG_TYPE_UNSPEC)	 
+		prog_type = uint32(netlink.BPF_PROG_TYPE_UNSPEC)
 	}
 
 	logBuf := make([]byte, 65535)
