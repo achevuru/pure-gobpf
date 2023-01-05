@@ -22,8 +22,9 @@ func XDPAttach(interfaceName string, progFD int) error {
 		return fmt.Errorf("Get LinkByName failed: %v", err)
 	}
 
+	log.Infof("Attaching xdp to interface %s and prog %d", interfaceName, progFD)
 	if err := netlink.LinkSetXdpFdWithFlags(link, progFD, int(XDP_ATTACH_MODE_SKB)); err != nil {
-		log.Infof("failed to setxdp")
+		log.Infof("failed to setxdp: %v", err)
 		return fmt.Errorf("LinkSetXdpFd failed: %v", err)
 	}
 	log.Infof("Attached XDP to interface %s", interfaceName)
