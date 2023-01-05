@@ -193,7 +193,7 @@ func doLoadELF(r io.ReaderAt) (int,error) {
 		}
 		progType := strings.ToLower(strings.Split(section.Name, "/")[0])
 		log.Infof("Found the progType %s", progType)
-		if progType != "xdp" {
+		if progType != "xdp" && progType != "tc_cls" && progType != "tc_act" {
 			log.Infof("Not supported program %s", progType)
 			continue
 		}

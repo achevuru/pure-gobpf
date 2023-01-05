@@ -248,6 +248,10 @@ func LoadProg(progType string, dataProg *elf.Section, licenseStr string) (int, e
 	switch(progType) {
 	case "xdp":
 		prog_type = uint32(netlink.BPF_PROG_TYPE_XDP)
+	case "tc_cls":
+		prog_type = uint32(netlink.BPF_PROG_TYPE_SCHED_CLS)	
+	case "tc_act":
+		prog_type = uint32(netlink.BPF_PROG_TYPE_SCHED_ACT)
 	default:
 		prog_type = uint32(netlink.BPF_PROG_TYPE_UNSPEC)	 
 	}
