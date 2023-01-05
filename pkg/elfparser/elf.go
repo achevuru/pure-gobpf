@@ -37,12 +37,12 @@ import (
 
 //Ref:https://github.com/torvalds/linux/blob/v5.10/samples/bpf/bpf_load.c
 
-func LoadBpfFile(path string) error {
+func LoadBpfFile(path string) (int, error) {
 	var log = logger.Get()
 	f, err := os.Open(path)
 	if err != nil {
 		log.Infof("LoadBpfFile failed to open")
-		return err
+		return -1, err
 	}
 	defer f.Close()
 
@@ -135,35 +135,38 @@ func loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, elfFile *elf.File)
 	return nil
 }
 
-func loadElfProgSection(dataProg *elf.Section, license string, progType string) error {
+func loadElfProgSection(dataProg *elf.Section, license string, progType string) (int, error) {
 	var log = logger.Get()
 
 	progFD, _ := ebpf.LoadProg(progType, dataProg, license)
 	if (progFD == -1) {
 		log.Infof("Failed to load prog")
-		return fmt.Errorf("Failed to Load the prog")	
+		return -1, fmt.Errorf("Failed to Load the prog")	
 	}
 	log.Infof("loaded prog with %d", progFD)
 
-	return nil
+	return progFD, nil
 }
 
-func doLoadELF(r io.ReaderAt) error {
+func doLoadELF(r io.ReaderAt) (int,error) {
 	var log = logger.Get()
+	var err error
 	elfFile, err := elf.NewFile(r)
 	if err != nil {
-		return err
+		return -1, err
 	}
 
+	//TODO this should be a map since we will have multiple progs...
+	var progFD int
 	var dataMaps *elf.Section
 	var mapsShndx int
 	var strtabidx uint32
 	license := ""
 	for index, section := range elfFile.Sections {
 		if section.Name == "license" {
-			data, err := section.Data()
+			data, _ := section.Data()
 			if err != nil {
-				return fmt.Errorf("Failed to read data for section %s: %v", section.Name, err)
+				return -1, fmt.Errorf("Failed to read data for section %s", section.Name)
 			}
 			license = string(data)
 			log.Infof("License %s", license)
@@ -179,7 +182,7 @@ func doLoadELF(r io.ReaderAt) error {
 	if (dataMaps != nil) {
 		err := loadElfMapsSection(mapsShndx, dataMaps, elfFile)
 		if err != nil {
-			return nil
+			return -1, nil
 		}
 	}
 
@@ -195,14 +198,14 @@ func doLoadELF(r io.ReaderAt) error {
 			continue
 		}
 		dataProg := section
-		err := loadElfProgSection(dataProg, license, progType)
+		progFD, err = loadElfProgSection(dataProg, license, progType)
 		if err != nil {
 			log.Infof("Failed to load the prog")
-			return fmt.Errorf("Failed to load prog %q - %v", dataProg.Name, err)
+			return -1, fmt.Errorf("Failed to load prog %q - %v", dataProg.Name, err)
 		}
 	}
 
 
-	return nil
+	return progFD, nil
 }
 
