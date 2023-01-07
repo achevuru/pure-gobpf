@@ -201,7 +201,7 @@ func (c *ELFContext)loadElfProgSection(dataProg *elf.Section, license string, pr
 					return -1, fmt.Errorf("Failed to Load the prog")	
 				}
 
-				log.Infof("Sec '%s': found program '%s' at insn offset %zu (%zu bytes), code size %zu insns (%zu bytes)\n", progType, name, secOff / insDefSize, secOff, progSize / insDefSize, progSize)
+				log.Infof("Sec '%s': found program '%s' at insn offset %d (%d bytes), code size %d insns (%d bytes)\n", progType, name, secOff / insDefSize, secOff, progSize / insDefSize, progSize)
 
 				/*
 				obj, prog, name, sec_idx, sec_name,
@@ -209,6 +209,7 @@ func (c *ELFContext)loadElfProgSection(dataProg *elf.Section, license string, pr
 				*/
 				if symbol.Value >= dataProg.Addr && symbol.Value < dataProg.Addr+dataProg.Size {
 		    		// Extract the BPF program data from the section data
+					log.Infof("Data offset - %d", symbol.Value-dataProg.Addr)
 		    			programData := data[symbol.Value-dataProg.Addr:]
 				    	progFD, _ := ebpf.LoadProg(progType, programData, license)
 				    	if progFD == -1 {
