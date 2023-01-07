@@ -15,7 +15,6 @@ package ebpf
 import "C"
 
 import (
-	"debug/elf"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -140,24 +139,15 @@ func (m *BpfMapData) CreateMap() (int, error) {
 	return int(ret), nil
 }
 
-func (m *BpfMapData) PinMap(mapFD int) error {
+func (m *BpfMapData) PinMap(mapFD int, pinPath string) error {
 	var log = logger.Get()
 	if m.Def.Pinning == PIN_NONE {
 		return nil
 	}
 
 	if m.Def.Pinning == PIN_GLOBAL_NS {
-		tcDir := "/sys/fs/bpf/tc"
-		//Create TC directory
-		err := os.MkdirAll(tcDir, 0755)
-		if err != nil {
-			log.Infof("error creating directory %q: %v", tcDir, err)
-			return fmt.Errorf("error creating directory %q: %v", tcDir, err)
-		}
 
-		pinPath := tcDir + "/globals/map-name"
-
-		err = os.MkdirAll(filepath.Dir(pinPath), 0755)
+		err := os.MkdirAll(filepath.Dir(pinPath), 0755)
 		if err != nil {
 			log.Infof("error creating directory %q: %v", filepath.Dir(pinPath), err)
 			return fmt.Errorf("error creating directory %q: %v", filepath.Dir(pinPath), err)
@@ -179,21 +169,8 @@ func (m *BpfMapData) PinMap(mapFD int) error {
 
 }
 
-func PinProg(progFD int) error {
+func PinProg(progFD int, pinPath string) error {
 	var log = logger.Get()
-
-	tcDir := "/sys/fs/bpf/tc"
-
-	if _, err := os.Stat(tcDir); os.IsNotExist(err) {
-		//Create TC directory
-		err := os.MkdirAll(tcDir, 0755)
-		if err != nil {
-			log.Infof("error creating directory %q: %v", tcDir, err)
-			return fmt.Errorf("error creating directory %q: %v", tcDir, err)
-		}
-	}
-
-	pinPath := tcDir + "/globals/prog-name"
 
 	err := os.MkdirAll(filepath.Dir(pinPath), 0755)
 	if err != nil {
@@ -241,7 +218,7 @@ func PinObject(objFD int, pinPath string) error {
 	return nil
 }
 
-func LoadProg(progType string, dataProg *elf.Section, licenseStr string) (int, error) {
+func LoadProg(progType string, data []byte, licenseStr string)(int, error) {
 	var log = logger.Get()
 
 	var prog_type uint32
@@ -263,19 +240,13 @@ func LoadProg(progType string, dataProg *elf.Section, licenseStr string) (int, e
 		LogSize:  uint32(cap(logBuf) - 1),
 		LogLevel: 1,
 	}
-	data, err := dataProg.Data()
-	if err != nil {
-		return 0, err
-	}
 
 	program.Insns = uintptr(unsafe.Pointer(&data[0]))
 	program.InsnCnt = uint32(len(data) / sizeofStructBpfInsn)
 
-	license := []byte("licenseStr")
+	license := []byte(licenseStr)
 	program.License = uintptr(unsafe.Pointer(&license[0]))
-	if err != nil {
-		return 0, err
-	}
+	
 	fd, _, errno := unix.Syscall(unix.SYS_BPF,
 		BPF_PROG_LOAD,
 		uintptr(unsafe.Pointer(&program)),
@@ -288,9 +259,10 @@ func LoadProg(progType string, dataProg *elf.Section, licenseStr string) (int, e
 		log.Infof(string(logBuf))
 		return 0, errno
 	}
+	pinPath := "/sys/fs/bpf/globals/test-prog" 
 
 	//Pin the prog
-	err = PinProg(int(fd))
+	err := PinProg(int(fd), pinPath)
 	if err != nil {
 		log.Infof("pin prog failed %v", err)
 		return 0, err
