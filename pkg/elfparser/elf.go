@@ -210,7 +210,10 @@ func (c *ELFContext)loadElfProgSection(dataProg *elf.Section, license string, pr
 				if symbol.Value >= dataProg.Addr && symbol.Value < dataProg.Addr+dataProg.Size {
 		    		// Extract the BPF program data from the section data
 					log.Infof("Data offset - %d", symbol.Value-dataProg.Addr)
-		    			programData := data[symbol.Value-dataProg.Addr:]
+		    			//programData := data[symbol.Value-dataProg.Addr:]
+					log.Infof("Data len - %d", len(data))
+					programData := data[symbol.Value-dataProg.Addr:progSize]
+					log.Infof("Program Data size - %d", len(programData))
 				    	progFD, _ := ebpf.LoadProg(progType, programData, license)
 				    	if progFD == -1 {
 					    log.Infof("Failed to load prog")
