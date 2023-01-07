@@ -19,6 +19,8 @@ struct bpf_map_def {
 };
 
 #define BPF_MAP_DEF_SIZE sizeof(struct bpf_map_def)
+
+#define BPF_INS_DEF_SIZE sizeof(struct bpf_insn)
 */
 import "C"
 
@@ -169,6 +171,7 @@ func (c *ELFContext)loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, elf
 func (c *ELFContext)loadElfProgSection(dataProg *elf.Section, license string, progType string, sectionIndex int, elfFile *elf.File) (int, error) {
 	var log = logger.Get()
 
+	insDefSize := uint64(C.BPF_INS_DEF_SIZE)
 	data, err := dataProg.Data()
 	if err != nil {
 		return -1, err
@@ -188,6 +191,22 @@ func (c *ELFContext)loadElfProgSection(dataProg *elf.Section, license string, pr
 	    		// Check if sectionIndex matches
 			if int(symbol.Section) == sectionIndex && elf.ST_BIND(symbol.Info) == elf.STB_GLOBAL {
 				// Check if the symbol's value (offset) is within the range of the section data
+
+				progSize := symbol.Size
+				secOff := symbol.Value
+				name := symbol.Name
+
+				if secOff + progSize > dataProg.Size {
+					log.Infof("Section out of bound secOff %d - progSize %d for name %s and data size %d", progSize, secOff, name, dataProg.Size)
+					return -1, fmt.Errorf("Failed to Load the prog")	
+				}
+
+				log.Infof("Sec '%s': found program '%s' at insn offset %zu (%zu bytes), code size %zu insns (%zu bytes)\n", progType, name, secOff / insDefSize, secOff, progSize / insDefSize, progSize)
+
+				/*
+				obj, prog, name, sec_idx, sec_name,
+					    sec_off, data + sec_off, prog_sz);
+				*/
 				if symbol.Value >= dataProg.Addr && symbol.Value < dataProg.Addr+dataProg.Size {
 		    		// Extract the BPF program data from the section data
 		    			programData := data[symbol.Value-dataProg.Addr:]

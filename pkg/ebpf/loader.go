@@ -221,6 +221,7 @@ func PinObject(objFD int, pinPath string) error {
 func LoadProg(progType string, data []byte, licenseStr string)(int, error) {
 	var log = logger.Get()
 
+	insDefSize := C.BPF_INS_DEF_SIZE
 	var prog_type uint32
 	switch progType {
 	case "xdp":
@@ -242,7 +243,8 @@ func LoadProg(progType string, data []byte, licenseStr string)(int, error) {
 	}
 
 	program.Insns = uintptr(unsafe.Pointer(&data[0]))
-	program.InsnCnt = uint32(len(data) / sizeofStructBpfInsn)
+	//program.InsnCnt = uint32(len(data) / sizeofStructBpfInsn)
+	program.InsnCnt = uint32(len(data) / insDefSize)
 
 	license := []byte(licenseStr)
 	program.License = uintptr(unsafe.Pointer(&license[0]))
