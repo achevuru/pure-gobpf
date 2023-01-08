@@ -212,7 +212,13 @@ func (c *ELFContext)loadElfProgSection(dataProg *elf.Section, license string, pr
 					log.Infof("Data offset - %d", symbol.Value-dataProg.Addr)
 		    			//programData := data[symbol.Value-dataProg.Addr:]
 					log.Infof("Data len - %d", len(data))
-					programData := data[symbol.Value-dataProg.Addr:progSize]
+
+					dataStart := (symbol.Value-dataProg.Addr)
+					dataEnd := dataStart+progSize 
+					programData := make([]byte, progSize)
+					copy(programData, data[dataStart:dataEnd])
+
+					//programData := data[symbol.Value-dataProg.Addr:progSize]
 					log.Infof("Program Data size - %d", len(programData))
 				    	progFD, _ := ebpf.LoadProg(progType, programData, license)
 				    	if progFD == -1 {
