@@ -1,4 +1,4 @@
-module github.com/jayanthvn/pure-gobpf
+module github.com/achevuru/pure-gobpf
 
 go 1.19
 
