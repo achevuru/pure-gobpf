@@ -220,7 +220,7 @@ func (c *ELFContext)loadElfProgSection(dataProg *elf.Section, license string, pr
 
 					//programData := data[symbol.Value-dataProg.Addr:progSize]
 					log.Infof("Program Data size - %d", len(programData))
-				    	progFD, _ := ebpf.LoadProg(progType, programData, license)
+				    	progFD, _ := ebpf.LoadProg(progType, programData, license, name)
 				    	if progFD == -1 {
 					    log.Infof("Failed to load prog")
 					    return -1, fmt.Errorf("Failed to Load the prog")

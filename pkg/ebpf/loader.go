@@ -80,7 +80,6 @@ const (
 	BPF_DIR_GLOBALS = "globals"
 )
 
-const sizeofStructBpfInsn = 8
 
 type BpfMapDef struct {
 	Type       uint32
@@ -218,7 +217,7 @@ func PinObject(objFD int, pinPath string) error {
 	return nil
 }
 
-func LoadProg(progType string, data []byte, licenseStr string)(int, error) {
+func LoadProg(progType string, data []byte, licenseStr string, progName string)(int, error) {
 	var log = logger.Get()
 
 	insDefSize := C.BPF_INS_DEF_SIZE
@@ -243,7 +242,6 @@ func LoadProg(progType string, data []byte, licenseStr string)(int, error) {
 	}
 
 	program.Insns = uintptr(unsafe.Pointer(&data[0]))
-	//program.InsnCnt = uint32(len(data) / sizeofStructBpfInsn)
 	program.InsnCnt = uint32(len(data) / insDefSize)
 
 	license := []byte(licenseStr)
@@ -261,7 +259,7 @@ func LoadProg(progType string, data []byte, licenseStr string)(int, error) {
 		log.Infof(string(logBuf))
 		return 0, errno
 	}
-	pinPath := "/sys/fs/bpf/globals/test-prog" 
+	pinPath := "/sys/fs/bpf/globals/"+progName 
 
 	//Pin the prog
 	err := PinProg(int(fd), pinPath)
