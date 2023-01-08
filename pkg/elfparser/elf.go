@@ -41,19 +41,19 @@ import (
 type ELFContext struct {
 	// .elf will have multiple sections and maps
 	Section map[string]ELFSection // Indexed by section type
-	Maps    map[string]ELFMap // Index by map name
+	Maps    map[string]ELFMap     // Index by map name
 }
 
 type ELFSection struct {
 	// Each sections will have a program but a single section type can have multiple programs
 	// like tc_cls
-	Programs    map[string]ELFProgram // Index by program name
+	Programs map[string]ELFProgram // Index by program name
 }
 
 type ELFProgram struct {
 	// return program name, prog FD and pinPath
-	ProgFD   int
-	PinPath  string
+	ProgFD  int
+	PinPath string
 }
 
 type ELFMap struct {
@@ -87,7 +87,7 @@ func NullTerminatedStringToString(val []byte) string {
 	return string(val[:slen])
 }
 
-func (c *ELFContext)loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, elfFile *elf.File) error {
+func (c *ELFContext) loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, elfFile *elf.File) error {
 	var log = logger.Get()
 	//Replace this TODO
 	mapDefinitionSize := C.BPF_MAP_DEF_SIZE
@@ -155,84 +155,89 @@ func (c *ELFContext)loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, elf
 			log.Infof("Failed to create map, continue to next map..just for debugging")
 			continue
 		}
-		
+
 		mapNameStr := string(loadedMaps.Name[:])
-		pinPath := "/sys/fs/bpf/globals/"+mapNameStr
+		pinPath := "/sys/fs/bpf/globals/" + mapNameStr
 		loadedMaps.PinMap(mapFD, pinPath)
 		c.Maps[mapNameStr] = ELFMap{
 			MapType: int(loadedMaps.Def.Type),
-			MapFD: mapFD,
+			MapFD:   mapFD,
 			PinPath: pinPath,
 		}
 	}
 	return nil
 }
 
-func (c *ELFContext)loadElfProgSection(dataProg *elf.Section, license string, progType string, sectionIndex int, elfFile *elf.File) (int, error) {
+func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, license string, progType string, sectionIndex int, elfFile *elf.File) error {
 	var log = logger.Get()
 
 	insDefSize := uint64(C.BPF_INS_DEF_SIZE)
 	data, err := dataProg.Data()
 	if err != nil {
-		return -1, err
+		return err
 	}
 
 	//Single section might have multiple programs. So we retrieve one prog at a time and load.
 	symbolTable, err := elfFile.Symbols()
 	if err != nil {
 		log.Infof("Get symbol failed")
-		return -1, fmt.Errorf("get symbols: %w", err)
+		return fmt.Errorf("get symbols: %w", err)
 	}
 
+	var pgmList = make(map[string]ELFProgram)
 	// Iterate over the symbols in the symbol table
 	for _, symbol := range symbolTable {
 		// Check if the symbol is a function
 		if elf.ST_TYPE(symbol.Info) == elf.STT_FUNC {
-	    		// Check if sectionIndex matches
+			// Check if sectionIndex matches
 			if int(symbol.Section) == sectionIndex && elf.ST_BIND(symbol.Info) == elf.STB_GLOBAL {
 				// Check if the symbol's value (offset) is within the range of the section data
 
 				progSize := symbol.Size
 				secOff := symbol.Value
-				name := symbol.Name
+				ProgName := symbol.Name
 
-				if secOff + progSize > dataProg.Size {
-					log.Infof("Section out of bound secOff %d - progSize %d for name %s and data size %d", progSize, secOff, name, dataProg.Size)
-					return -1, fmt.Errorf("Failed to Load the prog")	
+				if secOff+progSize > dataProg.Size {
+					log.Infof("Section out of bound secOff %d - progSize %d for name %s and data size %d", progSize, secOff, ProgName, dataProg.Size)
+					return fmt.Errorf("Failed to Load the prog")
 				}
 
-				log.Infof("Sec '%s': found program '%s' at insn offset %d (%d bytes), code size %d insns (%d bytes)\n", progType, name, secOff / insDefSize, secOff, progSize / insDefSize, progSize)
-
-				/*
-				obj, prog, name, sec_idx, sec_name,
-					    sec_off, data + sec_off, prog_sz);
-				*/
+				log.Infof("Sec '%s': found program '%s' at insn offset %d (%d bytes), code size %d insns (%d bytes)\n", progType, ProgName, secOff/insDefSize, secOff, progSize/insDefSize, progSize)
 				if symbol.Value >= dataProg.Addr && symbol.Value < dataProg.Addr+dataProg.Size {
-		    		// Extract the BPF program data from the section data
+					// Extract the BPF program data from the section data
 					log.Infof("Data offset - %d", symbol.Value-dataProg.Addr)
-		    			//programData := data[symbol.Value-dataProg.Addr:]
 					log.Infof("Data len - %d", len(data))
 
-					dataStart := (symbol.Value-dataProg.Addr)
-					dataEnd := dataStart+progSize 
+					dataStart := (symbol.Value - dataProg.Addr)
+					dataEnd := dataStart + progSize
 					programData := make([]byte, progSize)
 					copy(programData, data[dataStart:dataEnd])
 
-					//programData := data[symbol.Value-dataProg.Addr:progSize]
 					log.Infof("Program Data size - %d", len(programData))
-				    	progFD, _ := ebpf.LoadProg(progType, programData, license, name)
-				    	if progFD == -1 {
-					    log.Infof("Failed to load prog")
-					    return -1, fmt.Errorf("Failed to Load the prog")
-				    	}
-				    	log.Infof("loaded prog with %d", progFD)
+
+					pinPath := "/sys/fs/bpf/globals/" + ProgName
+					progFD, _ := ebpf.LoadProg(progType, programData, license, ProgName)
+					if progFD == -1 {
+						log.Infof("Failed to load prog")
+						return fmt.Errorf("Failed to Load the prog")
+					}
+					log.Infof("loaded prog with %d", progFD)
+					pgmList[ProgName] = ELFProgram{
+						ProgFD:  progFD,
+						PinPath: pinPath,
+					}
+				} else {
+					log.Infof("Invalid ELF file\n")
+					return fmt.Errorf("Failed to Load the prog")
 				}
-	    		}
+			}
 		}
-    	}
+	}
+	c.Section[progType] = ELFSection{
+		Programs: pgmList,
+	}
 
-
-	return 0, nil
+	return nil
 }
 
 func doLoadELF(r io.ReaderAt) (*ELFContext, error) {
@@ -287,7 +292,7 @@ func doLoadELF(r io.ReaderAt) (*ELFContext, error) {
 			continue
 		}
 		dataProg := section
-		_, err = c.loadElfProgSection(dataProg, license, progType, sectionIndex, elfFile)
+		err = c.loadElfProgSection(dataProg, license, progType, sectionIndex, elfFile)
 		if err != nil {
 			log.Infof("Failed to load the prog")
 			return nil, fmt.Errorf("Failed to load prog %q - %v", dataProg.Name, err)
