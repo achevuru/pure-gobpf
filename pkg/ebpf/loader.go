@@ -19,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"syscall"
 	"unsafe"
 
 	"github.com/jayanthvn/pure-gobpf/pkg/logger"
@@ -137,6 +138,16 @@ func (m *BpfMapData) CreateMap() (int, error) {
 	return int(ret), nil
 }
 
+func mount_bpf_fs() error {
+	var log = logger.Get()
+	log.Infof("Let's mount BPF FS")
+	err := syscall.Mount("bpf", "/sys/fs/bpf", "bpf", 0, "mode=0700")
+	if err != nil{
+		log.Errorf("error mounting bpffs: %v", err)
+	}
+	return err
+}
+
 func (m *BpfMapData) PinMap(mapFD int, pinPath string) error {
 	var log = logger.Get()
 	if m.Def.Pinning == PIN_NONE {
@@ -170,7 +181,13 @@ func (m *BpfMapData) PinMap(mapFD int, pinPath string) error {
 func PinProg(progFD int, pinPath string) error {
 	var log = logger.Get()
 
-	err := os.MkdirAll(filepath.Dir(pinPath), 0755)
+	err := mount_bpf_fs()
+	if err != nil{
+		log.Errorf("error mounting bpffs: %v", err)
+		return err
+	}
+
+	err = os.MkdirAll(filepath.Dir(pinPath), 0755)
 	if err != nil {
 		log.Infof("error creating directory %q: %v", filepath.Dir(pinPath), err)
 		return fmt.Errorf("error creating directory %q: %v", filepath.Dir(pinPath), err)
