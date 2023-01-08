@@ -33,7 +33,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/jayanthvn/pure-gobpf/pkg/ebpf"
+	"github.com/achevuru/pure-gobpf/pkg/ebpf"
 	"github.com/jayanthvn/pure-gobpf/pkg/logger"
 )
 
