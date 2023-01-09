@@ -94,7 +94,7 @@ type BpfMapData struct {
 	Def      BpfMapDef
 	numaNode uint32
 	//Name     [16]byte
-	Name      string
+	Name string
 }
 
 type BpfPin struct {
