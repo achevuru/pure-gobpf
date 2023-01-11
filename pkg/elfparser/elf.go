@@ -216,7 +216,7 @@ func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, license string, p
 					log.Infof("Program Data size - %d", len(programData))
 
 					pinPath := "/sys/fs/bpf/globals/" + ProgName
-					progFD, _ := ebpf.LoadProg(progType, programData, license, ProgName)
+					progFD, _ := ebpf.LoadProg(progType, programData, license, pinPath)
 					if progFD == -1 {
 						log.Infof("Failed to load prog")
 						return fmt.Errorf("Failed to Load the prog")
