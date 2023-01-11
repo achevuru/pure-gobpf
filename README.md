@@ -38,7 +38,34 @@ goebpfelfparser "gitlab.aws.dev/varavaj/aws-ebpf-gosdk/pkg/elfparser"
 goebpfelfparser.LoadBpfFile(<ELF file>)
 ```
 
-This return the program FD.
+This return ELFContext which contains all programs under a section and all maps.
+
+```
+type ELFContext struct {
+	// .elf will have multiple sections and maps
+	Section map[string]ELFSection // Indexed by section type
+	Maps    map[string]ELFMap     // Index by map name
+}
+
+type ELFSection struct {
+	// Each sections will have a program but a single section type can have multiple programs
+	// like tc_cls
+	Programs map[string]ELFProgram // Index by program name
+}
+
+type ELFProgram struct {
+	// return program name, prog FD and pinPath
+	ProgFD  int
+	PinPath string
+}
+
+type ELFMap struct {
+	// return map type, map FD and pinPath
+	MapType int
+	MapFD   int
+	PinPath string
+}
+```
 
 ## How to attach XDP?
 
@@ -53,7 +80,10 @@ goebpf "github.com/jayanthvn/pure-gobpf/pkg/ebpf"
 Pass the interface name, program FD and program name.
 
 ```
-progFD, err := goebpfelfparser.LoadBpfFile(<ELF file>)
+elfcontext, err := goebpfelfparser.LoadBpfFile(<ELF file>)
+
+Retrieve the progFD for the intended program from elfcontext -
+
 err = goebpf.XDPAttach(hostVethName, progFD)
 ```
 
@@ -68,6 +98,27 @@ goebpf "github.com/jayanthvn/pure-gobpf/pkg/ebpf"
 2. Attach TC - 
 
 ```
-progFD, err := goebpfelfparser.LoadBpfFile(<ELF file>)
+elfcontext, err := goebpfelfparser.LoadBpfFile(<ELF file>)
+
+Retrieve the progFD for the intended program from elfcontext -
+
 err = goebpf.TCIngressAttach(hostVethName, progFD)
+```
+
+## Sample example to fetch program from ELFContext - 
+
+```
+var elfContext *goebpfelfparser.ELFContext
+elfContext, err = goebpfelfparser.LoadBpfFile(<ELF file>)
+if err != nil {
+	log.Errorf("LoadElf() failed: %v", err)
+}
+
+for pgmName, pgmData := range elfContext.Section["xdp"].Programs {
+	log.Infof("xdp -> PgmName %s : ProgFD %d and PinPath %s", pgmName, pgmData.ProgFD, pgmData.PinPath)
+}
+
+for pgmName, pgmData := range elfContext.Section["tc_cls"].Programs {
+	log.Infof("tc_cls -> PgmName %s : ProgFD %d and PinPath %s", pgmName, pgmData.ProgFD, pgmData.PinPath)
+}
 ```

@@ -32,6 +32,9 @@ import (
 	"os"
 	"path"
 	"strings"
+	"unsafe"
+
+	//"syscall/cgo"
 
 	"github.com/achevuru/pure-gobpf/pkg/ebpf"
 	"github.com/jayanthvn/pure-gobpf/pkg/logger"
@@ -126,20 +129,16 @@ func (c *ELFContext) loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, el
 
 		for _, sym := range symbols {
 			if int(sym.Section) == mapsShndx && int(sym.Value) == offset {
-				var name [16]byte
 				mapName := path.Base(sym.Name)
-				copy(name[:], mapName)
-				mapData.Name = name
+				cstr := C.CString(mapName)
+				b := C.GoBytes(unsafe.Pointer(cstr), C.int(unsafe.Sizeof(cstr)))
+				str := string(b)
+				mapData.Name = str
+				C.free(unsafe.Pointer(cstr))
 				break
 			}
 		}
-		mapNameStr := string(mapData.Name[:])
-		if mapNameStr == "" {
-			log.Infof("Unable to get map name")
-			return fmt.Errorf("Unable to get map name (section offset=%d)", offset)
-		} else {
-			log.Infof("Found map name %s", mapData.Name)
-		}
+		log.Infof("Found map name %s", mapData.Name)
 		mapData.Def = mapDef
 		GlobalMapData = append(GlobalMapData, mapData)
 	}
@@ -156,7 +155,7 @@ func (c *ELFContext) loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, el
 			continue
 		}
 
-		mapNameStr := string(loadedMaps.Name[:])
+		mapNameStr := loadedMaps.Name
 		pinPath := "/sys/fs/bpf/globals/" + mapNameStr
 		loadedMaps.PinMap(mapFD, pinPath)
 		c.Maps[mapNameStr] = ELFMap{
