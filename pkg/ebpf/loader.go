@@ -189,7 +189,7 @@ func PinProg(progFD int, pinPath string) error {
 
  */
 
-	err = os.MkdirAll(filepath.Dir(pinPath), 0755)
+	err := os.MkdirAll(filepath.Dir(pinPath), 0755)
 	if err != nil {
 		log.Infof("error creating directory %q: %v", filepath.Dir(pinPath), err)
 		return fmt.Errorf("error creating directory %q: %v", filepath.Dir(pinPath), err)
