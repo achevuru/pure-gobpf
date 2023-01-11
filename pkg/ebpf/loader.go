@@ -180,12 +180,14 @@ func (m *BpfMapData) PinMap(mapFD int, pinPath string) error {
 
 func PinProg(progFD int, pinPath string) error {
 	var log = logger.Get()
-
+/*
 	err := mount_bpf_fs()
 	if err != nil{
 		log.Errorf("error mounting bpffs: %v", err)
 		return err
 	}
+
+ */
 
 	err = os.MkdirAll(filepath.Dir(pinPath), 0755)
 	if err != nil {
