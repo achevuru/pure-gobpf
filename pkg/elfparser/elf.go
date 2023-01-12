@@ -287,7 +287,7 @@ func doLoadELF(r io.ReaderAt) (*ELFContext, error) {
 
 		log.Infof("Found PROG Section at Index %v", sectionIndex)
 		for _, reloSection := range elfFile.Sections {
-			if reloSection.Type != elf.SHT_REL {
+			if reloSection.Type == elf.SHT_REL {
 				log.Infof("Found a relocation section; Info:%v; Name: %s, Type: %s; Size: %v", reloSection.Info,
 					reloSection.Name, reloSection.Type, reloSection.Size)
 			}
