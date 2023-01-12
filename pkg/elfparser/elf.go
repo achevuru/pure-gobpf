@@ -167,7 +167,7 @@ func (c *ELFContext) loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, el
 	return nil
 }
 
-func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, license string, progType string, sectionIndex int, elfFile *elf.File) error {
+func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, reloSection *elf.Section, license string, progType string, sectionIndex int, elfFile *elf.File) error {
 	var log = logger.Get()
 
 	insDefSize := uint64(C.BPF_INS_DEF_SIZE)
@@ -175,6 +175,9 @@ func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, license string, p
 	if err != nil {
 		return err
 	}
+
+	log.Infof("Loading Program with relocation section; Info:%v; Name: %s, Type: %s; Size: %v", reloSection.Info,
+		reloSection.Name, reloSection.Type, reloSection.Size)
 
 	//Single section might have multiple programs. So we retrieve one prog at a time and load.
 	symbolTable, err := elfFile.Symbols()
@@ -250,6 +253,7 @@ func doLoadELF(r io.ReaderAt) (*ELFContext, error) {
 	c := &ELFContext{}
 	c.Section = make(map[string]ELFSection)
 	c.Maps = make(map[string]ELFMap)
+	reloSectionMap := make(map[uint32]*elf.Section)
 
 	var dataMaps *elf.Section
 	var mapsShndx int
@@ -279,6 +283,15 @@ func doLoadELF(r io.ReaderAt) (*ELFContext, error) {
 		}
 	}
 
+	//Gather relocation section info
+	for _, reloSection := range elfFile.Sections {
+		if reloSection.Type == elf.SHT_REL {
+			log.Infof("Found a relocation section; Info:%v; Name: %s, Type: %s; Size: %v", reloSection.Info,
+				reloSection.Name, reloSection.Type, reloSection.Size)
+			reloSectionMap[reloSection.Info] = reloSection
+		}
+	}
+
 	//Load prog
 	for sectionIndex, section := range elfFile.Sections {
 		if section.Type != elf.SHT_PROGBITS {
@@ -286,13 +299,6 @@ func doLoadELF(r io.ReaderAt) (*ELFContext, error) {
 		}
 
 		log.Infof("Found PROG Section at Index %v", sectionIndex)
-		for _, reloSection := range elfFile.Sections {
-			if reloSection.Type == elf.SHT_REL {
-				log.Infof("Found a relocation section; Info:%v; Name: %s, Type: %s; Size: %v", reloSection.Info,
-					reloSection.Name, reloSection.Type, reloSection.Size)
-			}
-		}
-
 		progType := strings.ToLower(strings.Split(section.Name, "/")[0])
 		log.Infof("Found the progType %s", progType)
 		if progType != "xdp" && progType != "tc_cls" && progType != "tc_act" {
@@ -300,7 +306,7 @@ func doLoadELF(r io.ReaderAt) (*ELFContext, error) {
 			continue
 		}
 		dataProg := section
-		err = c.loadElfProgSection(dataProg, license, progType, sectionIndex, elfFile)
+		err = c.loadElfProgSection(dataProg, reloSectionMap[uint32(sectionIndex)], license, progType, sectionIndex, elfFile)
 		if err != nil {
 			log.Infof("Failed to load the prog")
 			return nil, fmt.Errorf("Failed to load prog %q - %v", dataProg.Name, err)
