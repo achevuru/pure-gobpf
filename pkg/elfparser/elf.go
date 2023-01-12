@@ -284,6 +284,15 @@ func doLoadELF(r io.ReaderAt) (*ELFContext, error) {
 		if section.Type != elf.SHT_PROGBITS {
 			continue
 		}
+
+		log.Infof("Found PROG Section at Index %v", sectionIndex)
+		for _, reloSection := range elfFile.Sections {
+			if reloSection.Type != elf.SHT_REL {
+				log.Infof("Found a relocation section; Info:%v; Name: %s, Type: %s; Size: %v", reloSection.Info,
+					reloSection.Name, reloSection.Type, reloSection.Size)
+			}
+		}
+
 		progType := strings.ToLower(strings.Split(section.Name, "/")[0])
 		log.Infof("Found the progType %s", progType)
 		if progType != "xdp" && progType != "tc_cls" && progType != "tc_act" {
