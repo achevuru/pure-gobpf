@@ -174,7 +174,7 @@ func (c *ELFContext) loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, el
 			if int(sym.Section) == mapsShndx && int(sym.Value) == offset {
 				mapName := path.Base(sym.Name)
 				cstr := C.CString(mapName)
-				b := C.GoBytes(unsafe.Pointer(cstr), C.int(unsafe.Sizeof(cstr)))
+				b := C.GoBytes(unsafe.Pointer(cstr), C.int(unsafe.Sizeof(mapName)))
 				str := string(b)
 				mapData.Name = str
 				C.free(unsafe.Pointer(cstr))
