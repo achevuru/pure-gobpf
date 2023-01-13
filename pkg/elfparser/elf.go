@@ -282,7 +282,7 @@ func (c *ELFContext) applyRelocations(dataProg *elf.Section, relocationEntries [
 
 	for _, relocationEntry := range relocationEntries {
 		if relocationEntry.offset >= len(data) {
-			return fmt.Errorf("Invalid Offset spotted in relocation section %d", relocationEntry.offset)
+			return fmt.Errorf("Invalid offset spotted in relocation section %d", relocationEntry.offset)
 		}
 
 		// Load BPF instruction that needs to be modified ("relocated")
@@ -291,6 +291,7 @@ func (c *ELFContext) applyRelocations(dataProg *elf.Section, relocationEntries [
 		if err != nil {
 			return err
 		}
+		log.Infof("BPF Instruction code: %s", instruction.code)
 		// Ensure that instruction is valid
 		if instruction.code != (unix.BPF_LD | unix.BPF_IMM | bpfDw) {
 			return fmt.Errorf("Invalid BPF instruction (at %d): %v",
@@ -301,6 +302,7 @@ func (c *ELFContext) applyRelocations(dataProg *elf.Section, relocationEntries [
 		if progMap, ok := c.Maps[mapName]; ok {
 			instruction.srcReg = 1
 			instruction.imm = uint32(progMap.MapFD)
+			log.Infof("Map to be relocated; Name: %s, FD: %v", mapName, progMap.MapFD)
 			copy(data[relocationEntry.offset:], instruction.save())
 		} else {
 			return fmt.Errorf("map '%s' doesn't exist", mapName)
