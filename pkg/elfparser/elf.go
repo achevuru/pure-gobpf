@@ -35,8 +35,6 @@ import (
 	"os"
 	"path"
 	"strings"
-	"unsafe"
-
 	//"syscall/cgo"
 
 	"github.com/achevuru/pure-gobpf/pkg/ebpf"
@@ -173,12 +171,17 @@ func (c *ELFContext) loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, el
 		for _, sym := range symbols {
 			if int(sym.Section) == mapsShndx && int(sym.Value) == offset {
 				mapName := path.Base(sym.Name)
-				cstr := C.CString(mapName)
-				b := C.GoBytes(unsafe.Pointer(cstr), C.int(unsafe.Sizeof(mapName)))
-				str := string(b)
-				mapData.Name = str
-				C.free(unsafe.Pointer(cstr))
-				break
+				log.Infof("mapData name: %s", mapName)
+				mapData.Name = mapName
+				log.Infof("mapData name: %s", mapData.Name)
+				/*
+					cstr := C.CString(mapName)
+					b := C.GoBytes(unsafe.Pointer(cstr), C.int(unsafe.Sizeof(cstr)))
+					str := string(b)
+					mapData.Name = str
+					C.free(unsafe.Pointer(cstr))
+					break
+				*/
 			}
 		}
 		log.Infof("Found map name %s", mapData.Name)
