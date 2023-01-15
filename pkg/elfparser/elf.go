@@ -294,7 +294,7 @@ func (c *ELFContext) applyRelocations(dataProg *elf.Section, relocationEntries [
 		if err != nil {
 			return err
 		}
-		log.Infof("BPF Instruction code: %s", instruction.code)
+		log.Infof("BPF Instruction code: %s; offset: %d; imm: %d", instruction.code, instruction.offset, instruction.imm)
 		// Ensure that instruction is valid
 		if instruction.code != (unix.BPF_LD | unix.BPF_IMM | bpfDw) {
 			return fmt.Errorf("Invalid BPF instruction (at %d): %v",
@@ -307,6 +307,7 @@ func (c *ELFContext) applyRelocations(dataProg *elf.Section, relocationEntries [
 			instruction.imm = uint32(progMap.MapFD)
 			log.Infof("Map to be relocated; Name: %s, FD: %v", mapName, progMap.MapFD)
 			copy(data[relocationEntry.offset:], instruction.save())
+			log.Infof("BPF Instruction code: %s; offset: %d; imm: %d", instruction.code, instruction.offset, instruction.imm)
 		} else {
 			return fmt.Errorf("map '%s' doesn't exist", mapName)
 		}
@@ -333,12 +334,43 @@ func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, reloSection *elf.
 		return fmt.Errorf("get symbols: %w", err)
 	}
 
-	relocations, err := parseRelocationSection(reloSection, elfFile)
-	if err != nil || len(relocations) == 0 {
+	relocationEntries, err := parseRelocationSection(reloSection, elfFile)
+	if err != nil || len(relocationEntries) == 0 {
 		return fmt.Errorf("Unable to parse relocation entries....")
 	}
 
-	err = c.applyRelocations(dataProg, relocations)
+	//err = c.applyRelocations(dataProg, relocations)
+
+	log.Infof("Applying Relocations..")
+	for _, relocationEntry := range relocationEntries {
+		if relocationEntry.offset >= len(data) {
+			return fmt.Errorf("Invalid offset spotted in relocation section %d", relocationEntry.offset)
+		}
+
+		// Load BPF instruction that needs to be modified ("relocated")
+		instruction := &bpfInstruction{}
+		err = instruction.load(data[relocationEntry.offset:])
+		if err != nil {
+			return err
+		}
+		log.Infof("BPF Instruction code: %s; offset: %d; imm: %d", instruction.code, instruction.offset, instruction.imm)
+		// Ensure that instruction is valid
+		if instruction.code != (unix.BPF_LD | unix.BPF_IMM | bpfDw) {
+			return fmt.Errorf("Invalid BPF instruction (at %d): %v",
+				relocationEntry.offset, instruction)
+		}
+		// Patch instruction to use proper map fd
+		mapName := relocationEntry.symbol.Name
+		if progMap, ok := c.Maps[mapName]; ok {
+			instruction.srcReg = 1
+			instruction.imm = uint32(progMap.MapFD)
+			log.Infof("Map to be relocated; Name: %s, FD: %v", mapName, progMap.MapFD)
+			copy(data[relocationEntry.offset:], instruction.save())
+			log.Infof("BPF Instruction code: %s; offset: %d; imm: %d", instruction.code, instruction.offset, instruction.imm)
+		} else {
+			return fmt.Errorf("map '%s' doesn't exist", mapName)
+		}
+	}
 
 	var pgmList = make(map[string]ELFProgram)
 	// Iterate over the symbols in the symbol table
