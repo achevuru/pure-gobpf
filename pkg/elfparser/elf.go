@@ -79,6 +79,17 @@ type bpf_insn struct {
 	imm    int32 // Immediate constant
 }
 
+// Loads BPF instruction from binary slice
+func (b *bpf_insn) retrieveBPFInstruction(data []byte) error {
+	b.code = data[0]
+	b.dstReg = data[1] & 0xf
+	b.srcReg = data[1] >> 4
+	b.off = int16(binary.LittleEndian.Uint16(data[2:]))
+	b.imm = int32(binary.LittleEndian.Uint32(data[4:]))
+
+	return nil
+}
+
 type relocationEntry struct {
 	relOffset int
 	symbol    elf.Symbol
@@ -261,8 +272,8 @@ func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, reloSection *elf.
 
 	log.Infof("Applying Relocations..")
 	for _, relocationEntry := range relocationEntries {
-		if relocationEntry.offset >= len(data) {
-			return fmt.Errorf("Invalid offset for the relocation entry %d", relocationEntry.offset)
+		if relocationEntry.relOffset >= len(data) {
+			return fmt.Errorf("Invalid offset for the relocation entry %d", relocationEntry.relOffset)
 		}
 
 		//eBPF has one 16-byte instruction: BPF_LD | BPF_DW | BPF_IMM which consists
@@ -270,7 +281,7 @@ func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, reloSection *elf.
 		//instruction that loads 64-bit immediate value into a dst_reg.
 		//Ref: https://www.kernel.org/doc/Documentation/networking/filter.txt
 		bpfInstruction := &bpf_insn{}
-		err = bpfInstruction.load(data[relocationEntry.offset:])
+		err = bpfInstruction.retrieveBPFInstruction(data[relocationEntry.relOffset : relocationEntry.relOffset+8])
 		if err != nil {
 			return err
 		}
@@ -280,7 +291,7 @@ func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, reloSection *elf.
 		if bpfInstruction.code != 0 || bpfInstruction.srcReg != 0 ||
 			bpfInstruction.dstReg != 0 || bpfInstruction.off != 0 {
 			return fmt.Errorf("Invalid BPF instruction (at %d): %v",
-				relocationEntry.offset, bpfInstruction)
+				relocationEntry.relOffset, bpfInstruction)
 		}
 
 		// Point BPF instruction to the FD of the map referenced. Update the last 4 bytes of
@@ -293,7 +304,7 @@ func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, reloSection *elf.
 		if progMap, ok := c.Maps[mapName]; ok {
 			log.Infof("Map found. Replace the offset with corresponding Map FD: %v", progMap.MapFD)
 			binary.LittleEndian.PutUint32(immOffset, uint32(progMap.MapFD))
-			copy(data[relocationEntry.offset+4:relocationEntry.offset+8], immOffset)
+			copy(data[relocationEntry.relOffset+4:relocationEntry.relOffset+8], immOffset)
 			log.Infof("BPF Instruction code: %s; offset: %d; imm: %d", bpfInstruction.code, bpfInstruction.off, bpfInstruction.imm)
 		} else {
 			return fmt.Errorf("map '%s' doesn't exist", mapName)
