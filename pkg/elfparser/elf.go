@@ -35,7 +35,6 @@ import (
 	"os"
 	"path"
 	"strings"
-	//"syscall/cgo"
 
 	"github.com/achevuru/pure-gobpf/pkg/ebpf"
 	"github.com/jayanthvn/pure-gobpf/pkg/logger"
@@ -73,16 +72,17 @@ type ELFMap struct {
 	PinPath string
 }
 
-type bpfInstruction struct {
-	code   uint8  // Opcode
-	dstReg uint8  // 4 bits: destination register, r0-r10
-	srcReg uint8  // 4 bits: source register, r0-r10
-	offset uint16 // Signed offset
-	imm    uint32 // Immediate constant
+//https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/bpf.h#L71
+type bpf_insn struct {
+	code   uint8 // Opcode
+	dstReg uint8 // 4 bits: destination register, r0-r10
+	srcReg uint8 // 4 bits: source register, r0-r10
+	off    int16 // Signed offset
+	imm    int32 // Immediate constant
 }
 
 // Loads BPF instruction from binary slice
-func (b *bpfInstruction) load(data []byte) error {
+func (b *bpf_insn) load(data []byte) error {
 	if len(data) < bpfInstructionLen {
 		return errors.New("Invalid BPF bytecode")
 	}
@@ -90,18 +90,18 @@ func (b *bpfInstruction) load(data []byte) error {
 	b.code = data[0]
 	b.dstReg = data[1] & 0xf
 	b.srcReg = data[1] >> 4
-	b.offset = binary.LittleEndian.Uint16(data[2:])
-	b.imm = binary.LittleEndian.Uint32(data[4:])
+	b.off = int16(binary.LittleEndian.Uint16(data[2:]))
+	b.imm = int32(binary.LittleEndian.Uint32(data[4:]))
 
 	return nil
 }
 
 // Converts BPF instruction into bytes
-func (b *bpfInstruction) save() []byte {
+func (b *bpf_insn) update() []byte {
 	res := make([]byte, bpfInstructionLen)
 	res[0] = b.code
 	res[1] = (b.srcReg << 4) | (b.dstReg & 0x0f)
-	binary.LittleEndian.PutUint16(res[2:], b.offset)
+	binary.LittleEndian.PutUint16(res[2:], b.off)
 	binary.LittleEndian.PutUint32(res[4:], b.imm)
 
 	return res
@@ -274,47 +274,6 @@ func parseRelocationSection(reloSection *elf.Section, elfFile *elf.File) ([]relo
 	}
 }
 
-func (c *ELFContext) applyRelocations(dataProg *elf.Section, relocationEntries []relocationEntry) error {
-	var log = logger.Get()
-	data, err := dataProg.Data()
-	if err != nil {
-		return err
-	}
-
-	log.Infof("Applying Relocations..")
-
-	for _, relocationEntry := range relocationEntries {
-		if relocationEntry.offset >= len(data) {
-			return fmt.Errorf("Invalid offset spotted in relocation section %d", relocationEntry.offset)
-		}
-
-		// Load BPF instruction that needs to be modified ("relocated")
-		instruction := &bpfInstruction{}
-		err = instruction.load(data[relocationEntry.offset:])
-		if err != nil {
-			return err
-		}
-		log.Infof("BPF Instruction code: %s; offset: %d; imm: %d", instruction.code, instruction.offset, instruction.imm)
-		// Ensure that instruction is valid
-		if instruction.code != (unix.BPF_LD | unix.BPF_IMM | bpfDw) {
-			return fmt.Errorf("Invalid BPF instruction (at %d): %v",
-				relocationEntry.offset, instruction)
-		}
-		// Patch instruction to use proper map fd
-		mapName := relocationEntry.symbol.Name
-		if progMap, ok := c.Maps[mapName]; ok {
-			instruction.srcReg = 1
-			instruction.imm = uint32(progMap.MapFD)
-			log.Infof("Map to be relocated; Name: %s, FD: %v", mapName, progMap.MapFD)
-			copy(data[relocationEntry.offset:], instruction.save())
-			log.Infof("BPF Instruction code: %s; offset: %d; imm: %d", instruction.code, instruction.offset, instruction.imm)
-		} else {
-			return fmt.Errorf("map '%s' doesn't exist", mapName)
-		}
-	}
-	return nil
-}
-
 func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, reloSection *elf.Section, license string, progType string, sectionIndex int, elfFile *elf.File) error {
 	var log = logger.Get()
 
@@ -344,29 +303,33 @@ func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, reloSection *elf.
 	log.Infof("Applying Relocations..")
 	for _, relocationEntry := range relocationEntries {
 		if relocationEntry.offset >= len(data) {
-			return fmt.Errorf("Invalid offset spotted in relocation section %d", relocationEntry.offset)
+			return fmt.Errorf("Invalid offset for the relocation entry %d", relocationEntry.offset)
 		}
 
-		// Load BPF instruction that needs to be modified ("relocated")
-		instruction := &bpfInstruction{}
-		err = instruction.load(data[relocationEntry.offset:])
+		//eBPF has one 16-byte instruction: BPF_LD | BPF_DW | BPF_IMM which consists
+		//of two consecutive 'struct bpf_insn' 8-byte blocks and interpreted as single
+		//instruction that loads 64-bit immediate value into a dst_reg.
+		//Ref: https://www.kernel.org/doc/Documentation/networking/filter.txt
+		bpfInstruction := &bpf_insn{}
+		err = bpfInstruction.load(data[relocationEntry.offset:])
 		if err != nil {
 			return err
 		}
-		log.Infof("BPF Instruction code: %s; offset: %d; imm: %d", instruction.code, instruction.offset, instruction.imm)
-		// Ensure that instruction is valid
-		if instruction.code != (unix.BPF_LD | unix.BPF_IMM | bpfDw) {
+		log.Infof("BPF Instruction code: %s; offset: %d; imm: %d", bpfInstruction.code, bpfInstruction.off, bpfInstruction.imm)
+
+		if bpfInstruction.code != (unix.BPF_LD | unix.BPF_IMM | unix.BPF_DW) {
 			return fmt.Errorf("Invalid BPF instruction (at %d): %v",
-				relocationEntry.offset, instruction)
+				relocationEntry.offset, bpfInstruction)
 		}
 		// Patch instruction to use proper map fd
 		mapName := relocationEntry.symbol.Name
+		log.Infof("Map to be relocated; Name: %s", mapName)
 		if progMap, ok := c.Maps[mapName]; ok {
-			instruction.srcReg = 1
-			instruction.imm = uint32(progMap.MapFD)
-			log.Infof("Map to be relocated; Name: %s, FD: %v", mapName, progMap.MapFD)
-			copy(data[relocationEntry.offset:], instruction.save())
-			log.Infof("BPF Instruction code: %s; offset: %d; imm: %d", instruction.code, instruction.offset, instruction.imm)
+			log.Infof("Map found. Replace the offset with corresponding Map FD: %v", progMap.MapFD)
+			bpfInstruction.srcReg = 1
+			bpfInstruction.imm = uint32(progMap.MapFD)
+			copy(data[relocationEntry.offset:], bpfInstruction.update())
+			log.Infof("BPF Instruction code: %s; offset: %d; imm: %d", bpfInstruction.code, bpfInstruction.off, bpfInstruction.imm)
 		} else {
 			return fmt.Errorf("map '%s' doesn't exist", mapName)
 		}
