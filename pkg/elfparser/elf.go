@@ -171,17 +171,7 @@ func (c *ELFContext) loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, el
 		for _, sym := range symbols {
 			if int(sym.Section) == mapsShndx && int(sym.Value) == offset {
 				mapName := path.Base(sym.Name)
-				log.Infof("mapData name: %s", mapName)
 				mapData.Name = mapName
-				log.Infof("mapData name: %s", mapData.Name)
-				/*
-					cstr := C.CString(mapName)
-					b := C.GoBytes(unsafe.Pointer(cstr), C.int(unsafe.Sizeof(cstr)))
-					str := string(b)
-					mapData.Name = str
-					C.free(unsafe.Pointer(cstr))
-					break
-				*/
 			}
 		}
 		log.Infof("Found map name %s", mapData.Name)
@@ -323,12 +313,15 @@ func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, reloSection *elf.
 		}
 		// Patch instruction to use proper map fd
 		mapName := relocationEntry.symbol.Name
+		immOffset := make([]byte, 4)
 		log.Infof("Map to be relocated; Name: %s", mapName)
 		if progMap, ok := c.Maps[mapName]; ok {
 			log.Infof("Map found. Replace the offset with corresponding Map FD: %v", progMap.MapFD)
-			bpfInstruction.srcReg = 1
-			bpfInstruction.imm = int32(progMap.MapFD)
-			copy(data[relocationEntry.offset:], bpfInstruction.update())
+			//bpfInstruction.srcReg = 1
+			//bpfInstruction.imm = int32(progMap.MapFD)
+			binary.LittleEndian.PutUint32(immOffset, uint32(progMap.MapFD))
+			copy(data[relocationEntry.offset+4:relocationEntry.offset+8], immOffset)
+			//copy(data[relocationEntry.offset:], bpfInstruction.update())
 			log.Infof("BPF Instruction code: %s; offset: %d; imm: %d", bpfInstruction.code, bpfInstruction.off, bpfInstruction.imm)
 		} else {
 			return fmt.Errorf("map '%s' doesn't exist", mapName)
