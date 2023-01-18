@@ -28,9 +28,7 @@ import (
 	"bytes"
 	"debug/elf"
 	"encoding/binary"
-	"errors"
 	"fmt"
-	"golang.org/x/sys/unix"
 	"io"
 	"os"
 	"path"
@@ -81,30 +79,9 @@ type bpf_insn struct {
 	imm    int32 // Immediate constant
 }
 
-// Loads BPF instruction from binary slice
-func (b *bpf_insn) load(data []byte) error {
-	if len(data) < bpfInstructionLen {
-		return errors.New("Invalid BPF bytecode")
-	}
-
-	b.code = data[0]
-	b.dstReg = data[1] & 0xf
-	b.srcReg = data[1] >> 4
-	b.off = int16(binary.LittleEndian.Uint16(data[2:]))
-	b.imm = int32(binary.LittleEndian.Uint32(data[4:]))
-
-	return nil
-}
-
-// Converts BPF instruction into bytes
-func (b *bpf_insn) update() []byte {
-	res := make([]byte, bpfInstructionLen)
-	res[0] = b.code
-	res[1] = (b.srcReg << 4) | (b.dstReg & 0x0f)
-	//binary.LittleEndian.PutUint16(res[2:], b.off)
-	//binary.LittleEndian.PutUint32(res[4:], b.imm)
-
-	return res
+type relocationEntry struct {
+	relOffset int
+	symbol    elf.Symbol
 }
 
 func LoadBpfFile(path string) (*ELFContext, error) {
@@ -203,13 +180,10 @@ func (c *ELFContext) loadElfMapsSection(mapsShndx int, dataMaps *elf.Section, el
 	return nil
 }
 
-type relocationEntry struct {
-	offset int
-	symbol elf.Symbol
-}
-
 func parseRelocationSection(reloSection *elf.Section, elfFile *elf.File) ([]relocationEntry, error) {
 	var log = logger.Get()
+	var result []relocationEntry
+
 	symbols, err := elfFile.Symbols()
 	if err != nil {
 		return nil, fmt.Errorf("unable to load symbols(): %v", err)
@@ -220,46 +194,43 @@ func parseRelocationSection(reloSection *elf.Section, elfFile *elf.File) ([]relo
 		return nil, fmt.Errorf("unable to read data from section '%s': %v", reloSection.Name, err)
 	}
 
-	// Parse all entries
-	var result []relocationEntry
 	reader := bytes.NewReader(data)
-
 	for {
 		var err error
-		var offset, symbolIndex int
+		var offset, index int
 
 		switch elfFile.Class {
 		case elf.ELFCLASS64:
-			var rel elf.Rel64
-			err = binary.Read(reader, elfFile.ByteOrder, &rel)
-			symbolIndex = int(elf.R_SYM64(rel.Info)) - 1
-			offset = int(rel.Off)
+			var relocEntry elf.Rel64
+			err = binary.Read(reader, elfFile.ByteOrder, &relocEntry)
+			index = int(elf.R_SYM64(relocEntry.Info)) - 1
+			offset = int(relocEntry.Off)
 		case elf.ELFCLASS32:
-			var rel elf.Rel32
-			err = binary.Read(reader, elfFile.ByteOrder, &rel)
-			symbolIndex = int(elf.R_SYM32(rel.Info)) - 1
-			offset = int(rel.Off)
+			var relocEntry elf.Rel32
+			err = binary.Read(reader, elfFile.ByteOrder, &relocEntry)
+			index = int(elf.R_SYM32(relocEntry.Info)) - 1
+			offset = int(relocEntry.Off)
 		default:
 			return nil, fmt.Errorf("Unsupported arch %v", elfFile.Class)
 		}
-		// Ignore EOF error
-		if err == io.EOF {
-			// No more relocations
-			return result, nil
-		}
 
 		if err != nil {
+			// EOF. Nothing more to do.
+			if err == io.EOF {
+				return result, nil
+			}
 			return nil, err
 		}
-		// Ensure that symbol exists
-		if symbolIndex >= len(symbols) {
-			return nil, fmt.Errorf("Invalid Relocation section entry'%v': symbol index %v does not exist",
-				reloSection, symbolIndex)
+
+		// Validate the derived index value
+		if index >= len(symbols) {
+			return nil, fmt.Errorf("Invalid Relocation section entry'%v': index %v does not exist",
+				reloSection, index)
 		}
-		log.Infof("Relocation section entry: %s @ %v", symbols[symbolIndex].Name, offset)
+		log.Infof("Relocation section entry: %s @ %v", symbols[index].Name, offset)
 		result = append(result, relocationEntry{
-			offset: offset,
-			symbol: symbols[symbolIndex],
+			relOffset: offset,
+			symbol:    symbols[index],
 		})
 	}
 }
@@ -288,8 +259,6 @@ func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, reloSection *elf.
 		return fmt.Errorf("Unable to parse relocation entries....")
 	}
 
-	//err = c.applyRelocations(dataProg, relocations)
-
 	log.Infof("Applying Relocations..")
 	for _, relocationEntry := range relocationEntries {
 		if relocationEntry.offset >= len(data) {
@@ -307,21 +276,24 @@ func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, reloSection *elf.
 		}
 		log.Infof("BPF Instruction code: %s; offset: %d; imm: %d", bpfInstruction.code, bpfInstruction.off, bpfInstruction.imm)
 
-		if bpfInstruction.code != (unix.BPF_LD | unix.BPF_IMM | unix.BPF_DW) {
+		//Validate for Invalid BPF instructions
+		if bpfInstruction.code != 0 || bpfInstruction.srcReg != 0 ||
+			bpfInstruction.dstReg != 0 || bpfInstruction.off != 0 {
 			return fmt.Errorf("Invalid BPF instruction (at %d): %v",
 				relocationEntry.offset, bpfInstruction)
 		}
-		// Patch instruction to use proper map fd
+
+		// Point BPF instruction to the FD of the map referenced. Update the last 4 bytes of
+		// instruction (immediate constant) with the map's FD.
+		// BPF_MEM | <size> | BPF_STX:  *(size *) (dst_reg + off) = src_reg
+		// BPF_MEM | <size> | BPF_ST:   *(size *) (dst_reg + off) = imm32
 		mapName := relocationEntry.symbol.Name
 		immOffset := make([]byte, 4)
 		log.Infof("Map to be relocated; Name: %s", mapName)
 		if progMap, ok := c.Maps[mapName]; ok {
 			log.Infof("Map found. Replace the offset with corresponding Map FD: %v", progMap.MapFD)
-			//bpfInstruction.srcReg = 1
-			//bpfInstruction.imm = int32(progMap.MapFD)
 			binary.LittleEndian.PutUint32(immOffset, uint32(progMap.MapFD))
 			copy(data[relocationEntry.offset+4:relocationEntry.offset+8], immOffset)
-			//copy(data[relocationEntry.offset:], bpfInstruction.update())
 			log.Infof("BPF Instruction code: %s; offset: %d; imm: %d", bpfInstruction.code, bpfInstruction.off, bpfInstruction.imm)
 		} else {
 			return fmt.Errorf("map '%s' doesn't exist", mapName)
