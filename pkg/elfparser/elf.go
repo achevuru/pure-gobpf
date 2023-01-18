@@ -101,8 +101,8 @@ func (b *bpf_insn) update() []byte {
 	res := make([]byte, bpfInstructionLen)
 	res[0] = b.code
 	res[1] = (b.srcReg << 4) | (b.dstReg & 0x0f)
-	binary.LittleEndian.PutUint16(res[2:], b.off)
-	binary.LittleEndian.PutUint32(res[4:], b.imm)
+	//binary.LittleEndian.PutUint16(res[2:], b.off)
+	//binary.LittleEndian.PutUint32(res[4:], b.imm)
 
 	return res
 }
@@ -327,7 +327,7 @@ func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, reloSection *elf.
 		if progMap, ok := c.Maps[mapName]; ok {
 			log.Infof("Map found. Replace the offset with corresponding Map FD: %v", progMap.MapFD)
 			bpfInstruction.srcReg = 1
-			bpfInstruction.imm = uint32(progMap.MapFD)
+			bpfInstruction.imm = int32(progMap.MapFD)
 			copy(data[relocationEntry.offset:], bpfInstruction.update())
 			log.Infof("BPF Instruction code: %s; offset: %d; imm: %d", bpfInstruction.code, bpfInstruction.off, bpfInstruction.imm)
 		} else {
