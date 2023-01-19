@@ -72,32 +72,21 @@ type ELFMap struct {
 }
 
 //https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/bpf.h#L71
-type bpf_insn struct {
-	code   uint8 // Opcode
-	dstReg uint8 // 4 bits: destination register, r0-r10
-	srcReg uint8 // 4 bits: source register, r0-r10
-	off    int16 // Signed offset
-	imm    int32 // Immediate constant
-}
-
-// Loads BPF instruction from binary slice
-func (b *bpf_insn) retrieveBPFInstruction(data []byte) error {
-	b.code = data[0]
-	b.dstReg = data[1] & 0xf
-	b.srcReg = data[1] >> 4
-	b.off = int16(binary.LittleEndian.Uint16(data[2:]))
-	b.imm = int32(binary.LittleEndian.Uint32(data[4:]))
-
-	return nil
+type BPFInsn struct {
+	Code   uint8 // Opcode
+	DstReg uint8 // 4 bits: destination register, r0-r10
+	SrcReg uint8 // 4 bits: source register, r0-r10
+	Off    int16 // Signed offset
+	Imm    int32 // Immediate constant
 }
 
 // Converts BPF instruction into bytes
-func (b *bpf_insn) updateBPFInstruction() []byte {
+func (b *BPFInsn) updateBPFInstruction() []byte {
 	res := make([]byte, bpfInstructionLen)
-	res[0] = b.code
-	res[1] = (b.srcReg << 4) | (b.dstReg & 0x0f)
-	binary.LittleEndian.PutUint16(res[2:], uint16(b.off))
-	binary.LittleEndian.PutUint32(res[4:], uint32(b.imm))
+	res[0] = b.Code
+	res[1] = (b.SrcReg << 4) | (b.DstReg & 0x0f)
+	binary.LittleEndian.PutUint16(res[2:], uint16(b.Off))
+	binary.LittleEndian.PutUint32(res[4:], uint32(b.Imm))
 
 	return res
 }
@@ -292,21 +281,18 @@ func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, reloSection *elf.
 		//of two consecutive 'struct bpf_insn' 8-byte blocks and interpreted as single
 		//instruction that loads 64-bit immediate value into a dst_reg.
 		//Ref: https://www.kernel.org/doc/Documentation/networking/filter.txt
-		bpfInstruction := &bpf_insn{
-			code:   data[relocationEntry.relOffset],
-			dstReg: data[relocationEntry.relOffset+1] & 0xf,
-			srcReg: data[relocationEntry.relOffset+1] >> 4,
-			off:    int16(binary.LittleEndian.Uint16(data[relocationEntry.relOffset+2:])),
-			imm:    int32(binary.LittleEndian.Uint32(data[relocationEntry.relOffset+4:])),
+		bpfInstruction := &BPFInsn{
+			Code:   data[relocationEntry.relOffset],
+			DstReg: data[relocationEntry.relOffset+1] & 0xf,
+			SrcReg: data[relocationEntry.relOffset+1] >> 4,
+			Off:    int16(binary.LittleEndian.Uint16(data[relocationEntry.relOffset+2:])),
+			Imm:    int32(binary.LittleEndian.Uint32(data[relocationEntry.relOffset+4:])),
 		}
-		//err = bpfInstruction.retrieveBPFInstruction(data[relocationEntry.relOffset : relocationEntry.relOffset+8])
-		//if err != nil {
-		//	return err
-		//}
+
 		log.Infof("BPF Instruction code: %s; offset: %d; imm: %d", bpfInstruction.code, bpfInstruction.off, bpfInstruction.imm)
 
 		//Validate for Invalid BPF instructions
-		if bpfInstruction.code != (unix.BPF_LD | unix.BPF_IMM | unix.BPF_DW) {
+		if bpfInstruction.Code != (unix.BPF_LD | unix.BPF_IMM | unix.BPF_DW) {
 			return fmt.Errorf("Invalid BPF instruction (at %d): %v",
 				relocationEntry.relOffset, bpfInstruction)
 		}
@@ -320,12 +306,12 @@ func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, reloSection *elf.
 		log.Infof("Map to be relocated; Name: %s", mapName)
 		if progMap, ok := c.Maps[mapName]; ok {
 			log.Infof("Map found. Replace the offset with corresponding Map FD: %v", progMap.MapFD)
-			bpfInstruction.srcReg = 1
-			bpfInstruction.imm = int32(progMap.MapFD)
+			//bpfInstruction.SrcReg = 1
+			bpfInstruction.Imm = int32(progMap.MapFD)
 			//binary.LittleEndian.PutUint32(immOffset, uint32(progMap.MapFD))
 			copy(data[relocationEntry.relOffset:], bpfInstruction.updateBPFInstruction())
 			//copy(data[relocationEntry.relOffset+4:relocationEntry.relOffset+8], immOffset)
-			log.Infof("BPF Instruction code: %d; offset: %d; imm: %d", bpfInstruction.code, bpfInstruction.off, bpfInstruction.imm)
+			log.Infof("BPF Instruction code: %d; offset: %d; imm: %d", bpfInstruction.Code, bpfInstruction.Off, bpfInstruction.Imm)
 			log.Infof("From data: BPF Instruction code: %d; offset: %d; imm: %d",
 				uint8(data[relocationEntry.relOffset]),
 				uint16(binary.LittleEndian.Uint16(data[relocationEntry.relOffset+2:relocationEntry.relOffset+4])),
