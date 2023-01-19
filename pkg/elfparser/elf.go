@@ -321,7 +321,7 @@ func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, reloSection *elf.
 			//copy(data[relocationEntry.relOffset+4:relocationEntry.relOffset+8], immOffset)
 			log.Infof("BPF Instruction code: %d; offset: %d; imm: %d", bpfInstruction.code, bpfInstruction.off, bpfInstruction.imm)
 			log.Infof("From data: BPF Instruction code: %d; offset: %d; imm: %d",
-				uint16(binary.LittleEndian.Uint16(data[relocationEntry.relOffset:relocationEntry.relOffset+2])),
+				uint8(binary.LittleEndian.Uint16(data[relocationEntry.relOffset:relocationEntry.relOffset+1])),
 				uint16(binary.LittleEndian.Uint16(data[relocationEntry.relOffset+2:relocationEntry.relOffset+4])),
 				uint32(binary.LittleEndian.Uint32(data[relocationEntry.relOffset+4:relocationEntry.relOffset+8])))
 		} else {
