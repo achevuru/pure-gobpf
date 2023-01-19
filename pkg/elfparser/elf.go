@@ -306,7 +306,7 @@ func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, reloSection *elf.
 		log.Infof("Map to be relocated; Name: %s", mapName)
 		if progMap, ok := c.Maps[mapName]; ok {
 			log.Infof("Map found. Replace the offset with corresponding Map FD: %v", progMap.MapFD)
-			//bpfInstruction.SrcReg = 1
+			bpfInstruction.SrcReg = 1 //dummy value for now
 			bpfInstruction.Imm = int32(progMap.MapFD)
 			//binary.LittleEndian.PutUint32(immOffset, uint32(progMap.MapFD))
 			copy(data[relocationEntry.relOffset:], bpfInstruction.updateBPFInstruction())
