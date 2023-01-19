@@ -90,6 +90,17 @@ func (b *bpf_insn) retrieveBPFInstruction(data []byte) error {
 	return nil
 }
 
+// Converts BPF instruction into bytes
+func (b *bpf_insn) updateBPFInstruction() []byte {
+	res := make([]byte, bpfInstructionLen)
+	res[0] = b.code
+	res[1] = (b.srcReg << 4) | (b.dstReg & 0x0f)
+	binary.LittleEndian.PutUint16(res[2:], uint16(b.off))
+	binary.LittleEndian.PutUint32(res[4:], uint32(b.imm))
+
+	return res
+}
+
 type relocationEntry struct {
 	relOffset int
 	symbol    elf.Symbol
@@ -299,12 +310,15 @@ func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, reloSection *elf.
 		// BPF_MEM | <size> | BPF_STX:  *(size *) (dst_reg + off) = src_reg
 		// BPF_MEM | <size> | BPF_ST:   *(size *) (dst_reg + off) = imm32
 		mapName := relocationEntry.symbol.Name
-		immOffset := make([]byte, 4)
+		//immOffset := make([]byte, 4)
 		log.Infof("Map to be relocated; Name: %s", mapName)
 		if progMap, ok := c.Maps[mapName]; ok {
 			log.Infof("Map found. Replace the offset with corresponding Map FD: %v", progMap.MapFD)
-			binary.LittleEndian.PutUint32(immOffset, uint32(progMap.MapFD))
-			copy(data[relocationEntry.relOffset+4:relocationEntry.relOffset+8], immOffset)
+			bpfInstruction.srcReg = 1
+			bpfInstruction.imm = int32(progMap.MapFD)
+			//binary.LittleEndian.PutUint32(immOffset, uint32(progMap.MapFD))
+			copy(data[relocationEntry.relOffset:], bpfInstruction.updateBPFInstruction())
+			//copy(data[relocationEntry.relOffset+4:relocationEntry.relOffset+8], immOffset)
 			log.Infof("BPF Instruction code: %s; offset: %d; imm: %d", bpfInstruction.code, bpfInstruction.off, bpfInstruction.imm)
 		} else {
 			return fmt.Errorf("map '%s' doesn't exist", mapName)
