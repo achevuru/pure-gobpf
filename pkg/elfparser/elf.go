@@ -39,12 +39,6 @@ import (
 	"github.com/jayanthvn/pure-gobpf/pkg/logger"
 )
 
-// Length of BPF instruction
-const bpfInstructionLen = 8
-
-// Other BPF constants that are not present in "golang.org/x/sys/unix"
-const bpfDw = 0x18 // ld/ldx double word
-
 //Ref:https://github.com/torvalds/linux/blob/v5.10/samples/bpf/bpf_load.c
 type ELFContext struct {
 	// .elf will have multiple sections and maps
@@ -81,8 +75,8 @@ type BPFInsn struct {
 }
 
 // Converts BPF instruction into bytes
-func (b *BPFInsn) updateBPFInstruction() []byte {
-	res := make([]byte, bpfInstructionLen)
+func (b *BPFInsn) convertBPFInstructionToByteStream() []byte {
+	res := make([]byte, 8)
 	res[0] = b.Code
 	res[1] = (b.SrcReg << 4) | (b.DstReg & 0x0f)
 	binary.LittleEndian.PutUint16(res[2:], uint16(b.Off))
@@ -281,7 +275,7 @@ func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, reloSection *elf.
 		//of two consecutive 'struct bpf_insn' 8-byte blocks and interpreted as single
 		//instruction that loads 64-bit immediate value into a dst_reg.
 		//Ref: https://www.kernel.org/doc/Documentation/networking/filter.txt
-		bpfInstruction := &BPFInsn{
+		ebpfInstruction := &BPFInsn{
 			Code:   data[relocationEntry.relOffset],
 			DstReg: data[relocationEntry.relOffset+1] & 0xf,
 			SrcReg: data[relocationEntry.relOffset+1] >> 4,
@@ -289,12 +283,12 @@ func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, reloSection *elf.
 			Imm:    int32(binary.LittleEndian.Uint32(data[relocationEntry.relOffset+4:])),
 		}
 
-		log.Infof("BPF Instruction code: %s; offset: %d; imm: %d", bpfInstruction.Code, bpfInstruction.Off, bpfInstruction.Imm)
+		log.Infof("BPF Instruction code: %s; offset: %d; imm: %d", ebpfInstruction.Code, ebpfInstruction.Off, ebpfInstruction.Imm)
 
 		//Validate for Invalid BPF instructions
-		if bpfInstruction.Code != (unix.BPF_LD | unix.BPF_IMM | unix.BPF_DW) {
-			return fmt.Errorf("Invalid BPF instruction (at %d): %v",
-				relocationEntry.relOffset, bpfInstruction)
+		if ebpfInstruction.Code != (unix.BPF_LD | unix.BPF_IMM | unix.BPF_DW) {
+			return fmt.Errorf("Invalid BPF instruction (at %d): %d",
+				relocationEntry.relOffset, ebpfInstruction.Code)
 		}
 
 		// Point BPF instruction to the FD of the map referenced. Update the last 4 bytes of
@@ -302,16 +296,13 @@ func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, reloSection *elf.
 		// BPF_MEM | <size> | BPF_STX:  *(size *) (dst_reg + off) = src_reg
 		// BPF_MEM | <size> | BPF_ST:   *(size *) (dst_reg + off) = imm32
 		mapName := relocationEntry.symbol.Name
-		//immOffset := make([]byte, 4)
 		log.Infof("Map to be relocated; Name: %s", mapName)
 		if progMap, ok := c.Maps[mapName]; ok {
 			log.Infof("Map found. Replace the offset with corresponding Map FD: %v", progMap.MapFD)
-			bpfInstruction.SrcReg = 1 //dummy value for now
-			bpfInstruction.Imm = int32(progMap.MapFD)
-			//binary.LittleEndian.PutUint32(immOffset, uint32(progMap.MapFD))
-			copy(data[relocationEntry.relOffset:], bpfInstruction.updateBPFInstruction())
-			//copy(data[relocationEntry.relOffset+4:relocationEntry.relOffset+8], immOffset)
-			log.Infof("BPF Instruction code: %d; offset: %d; imm: %d", bpfInstruction.Code, bpfInstruction.Off, bpfInstruction.Imm)
+			ebpfInstruction.SrcReg = 1 //dummy value for now
+			ebpfInstruction.Imm = int32(progMap.MapFD)
+			copy(data[relocationEntry.relOffset:relocationEntry.relOffset+8], ebpfInstruction.convertBPFInstructionToByteStream())
+			log.Infof("BPF Instruction code: %d; offset: %d; imm: %d", ebpfInstruction.Code, ebpfInstruction.Off, ebpfInstruction.Imm)
 			log.Infof("From data: BPF Instruction code: %d; offset: %d; imm: %d",
 				uint8(data[relocationEntry.relOffset]),
 				uint16(binary.LittleEndian.Uint16(data[relocationEntry.relOffset+2:relocationEntry.relOffset+4])),
