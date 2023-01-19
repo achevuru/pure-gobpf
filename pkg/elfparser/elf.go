@@ -299,8 +299,8 @@ func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, reloSection *elf.
 		log.Infof("BPF Instruction code: %s; offset: %d; imm: %d", bpfInstruction.code, bpfInstruction.off, bpfInstruction.imm)
 
 		//Validate for Invalid BPF instructions
-		if bpfInstruction.code != 0 || bpfInstruction.srcReg != 0 ||
-			bpfInstruction.dstReg != 0 || bpfInstruction.off != 0 {
+		if bpfInstruction.code != 0 { //|| bpfInstruction.srcReg != 0 ||
+			//bpfInstruction.dstReg != 0 || bpfInstruction.off != 0 {
 			return fmt.Errorf("Invalid BPF instruction (at %d): %v",
 				relocationEntry.relOffset, bpfInstruction)
 		}
