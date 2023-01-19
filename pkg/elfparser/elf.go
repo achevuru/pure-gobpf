@@ -289,7 +289,7 @@ func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, reloSection *elf.
 			Imm:    int32(binary.LittleEndian.Uint32(data[relocationEntry.relOffset+4:])),
 		}
 
-		log.Infof("BPF Instruction code: %s; offset: %d; imm: %d", bpfInstruction.code, bpfInstruction.off, bpfInstruction.imm)
+		log.Infof("BPF Instruction code: %s; offset: %d; imm: %d", bpfInstruction.Code, bpfInstruction.Off, bpfInstruction.Imm)
 
 		//Validate for Invalid BPF instructions
 		if bpfInstruction.Code != (unix.BPF_LD | unix.BPF_IMM | unix.BPF_DW) {
