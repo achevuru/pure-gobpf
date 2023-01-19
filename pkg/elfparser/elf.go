@@ -292,11 +292,17 @@ func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, reloSection *elf.
 		//of two consecutive 'struct bpf_insn' 8-byte blocks and interpreted as single
 		//instruction that loads 64-bit immediate value into a dst_reg.
 		//Ref: https://www.kernel.org/doc/Documentation/networking/filter.txt
-		bpfInstruction := &bpf_insn{}
-		err = bpfInstruction.retrieveBPFInstruction(data[relocationEntry.relOffset : relocationEntry.relOffset+8])
-		if err != nil {
-			return err
+		bpfInstruction := &bpf_insn{
+			code:   data[relocationEntry.relOffset],
+			dstReg: data[relocationEntry.relOffset+1] & 0xf,
+			srcReg: data[relocationEntry.relOffset+1] >> 4,
+			off:    int16(binary.LittleEndian.Uint16(data[relocationEntry.relOffset+2:])),
+			imm:    int32(binary.LittleEndian.Uint32(data[relocationEntry.relOffset+4:])),
 		}
+		//err = bpfInstruction.retrieveBPFInstruction(data[relocationEntry.relOffset : relocationEntry.relOffset+8])
+		//if err != nil {
+		//	return err
+		//}
 		log.Infof("BPF Instruction code: %s; offset: %d; imm: %d", bpfInstruction.code, bpfInstruction.off, bpfInstruction.imm)
 
 		//Validate for Invalid BPF instructions
@@ -321,7 +327,7 @@ func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, reloSection *elf.
 			//copy(data[relocationEntry.relOffset+4:relocationEntry.relOffset+8], immOffset)
 			log.Infof("BPF Instruction code: %d; offset: %d; imm: %d", bpfInstruction.code, bpfInstruction.off, bpfInstruction.imm)
 			log.Infof("From data: BPF Instruction code: %d; offset: %d; imm: %d",
-				uint8(binary.LittleEndian.Uint16(data[relocationEntry.relOffset:relocationEntry.relOffset+1])),
+				uint8(data[relocationEntry.relOffset]),
 				uint16(binary.LittleEndian.Uint16(data[relocationEntry.relOffset+2:relocationEntry.relOffset+4])),
 				uint32(binary.LittleEndian.Uint32(data[relocationEntry.relOffset+4:relocationEntry.relOffset+8])))
 		} else {
