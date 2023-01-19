@@ -319,11 +319,11 @@ func (c *ELFContext) loadElfProgSection(dataProg *elf.Section, reloSection *elf.
 			//binary.LittleEndian.PutUint32(immOffset, uint32(progMap.MapFD))
 			copy(data[relocationEntry.relOffset:], bpfInstruction.updateBPFInstruction())
 			//copy(data[relocationEntry.relOffset+4:relocationEntry.relOffset+8], immOffset)
-			log.Infof("BPF Instruction code: %s; offset: %d; imm: %d", bpfInstruction.code, bpfInstruction.off, bpfInstruction.imm)
-			log.Infof("From data: BPF Instruction code: %s; offset: %d; imm: %d",
-				binary.LittleEndian.Uint32(data[relocationEntry.relOffset:relocationEntry.relOffset+1]),
-				binary.LittleEndian.Uint32(data[relocationEntry.relOffset+2:relocationEntry.relOffset+4]),
-				binary.LittleEndian.Uint32(data[relocationEntry.relOffset+4:relocationEntry.relOffset+8]))
+			log.Infof("BPF Instruction code: %d; offset: %d; imm: %d", bpfInstruction.code, bpfInstruction.off, bpfInstruction.imm)
+			log.Infof("From data: BPF Instruction code: %d; offset: %d; imm: %d",
+				uint16(binary.LittleEndian.Uint16(data[relocationEntry.relOffset:relocationEntry.relOffset+2])),
+				uint16(binary.LittleEndian.Uint16(data[relocationEntry.relOffset+2:relocationEntry.relOffset+4])),
+				uint32(binary.LittleEndian.Uint32(data[relocationEntry.relOffset+4:relocationEntry.relOffset+8])))
 		} else {
 			return fmt.Errorf("map '%s' doesn't exist", mapName)
 		}
